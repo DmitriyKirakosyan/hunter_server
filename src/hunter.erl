@@ -14,14 +14,6 @@ ensure_started(App) ->
 %% @doc Start the minemania server.
 start() ->
     ensure_started(crypto),
-    io:format("trying to start hunter~n"),
-    application:start(ranch),
-    application:start(cowlib),
-    application:start(cowboy),
-    application:start(compiler),
-    application:start(syntax_tools),
-    application:start(goldrush),
-    application:start(lager),
     application:start(hunter).
 
 

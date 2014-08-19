@@ -6,11 +6,7 @@
   {applications, [
                   kernel,
                   stdlib,
-                  crypto,
-                  cowboy,
-                  compiler,
-                  lager,
-                  syntax_tools
+                  crypto
                  ]},
   {mod, { hunter_app, []}},
   {env, []}
