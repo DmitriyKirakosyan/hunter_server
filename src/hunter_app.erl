@@ -37,7 +37,7 @@ accept(LSocket) ->
 loop(Socket, Players) ->
     case gen_tcp:recv(Socket, 0) of
         {ok, Data} ->
-            DecodedData = jiffy:decode(Data),
+            DecodedData = mochijson2:decode(Data),
 
             io:format("data recieved : ~p~n", [Data]),
             io:format("decoded data : ~p~n", [DecodedData]),
