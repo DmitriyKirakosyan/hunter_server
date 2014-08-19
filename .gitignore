@@ -4,6 +4,6 @@ deps
 *.beam
 *.plt
 erl_crash.dump
-log/
+*log/
 .DS_Store
 ebin/
