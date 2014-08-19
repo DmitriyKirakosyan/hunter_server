@@ -13,7 +13,6 @@
 
 start(_StartType, _StartArgs) ->
     listen(8080).
-    %hunter_sup:start_link().
 
 stop(_State) ->
     ok.
@@ -31,16 +30,19 @@ listen(Port) ->
 % Wait for incoming connections and spawn the echo loop when we get one.
 accept(LSocket) ->
     {ok, Socket} = gen_tcp:accept(LSocket),
-    spawn(fun() -> loop(Socket) end),
+    spawn(fun() -> loop(Socket, []) end),
     accept(LSocket).
 
 % Echo back whatever data we receive on Socket.
-loop(Socket) ->
+loop(Socket, Players) ->
     case gen_tcp:recv(Socket, 0) of
         {ok, Data} ->
+            DecodedData = jiffy:decode(Data),
+
             io:format("data recieved : ~p~n", [Data]),
+            io:format("decoded data : ~p~n", [DecodedData]),
             gen_tcp:send(Socket, Data),
-            loop(Socket);
+            loop(Socket, Players);
         {error, closed} ->
             ok
     end.
