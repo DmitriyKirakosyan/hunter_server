@@ -41,11 +41,14 @@ loop(Socket) ->
     case gen_tcp:recv(Socket, 0) of
         {ok, Data} ->
             io:format("data recieved : ~p~n", [Data]),
+            MochiActions = [mochijson2:decode(Item) || Item <- divide_actions(Data)],
+            Actions = [Item || {struct, Item} <- MochiActions],
 
-            {struct, Params} = mochijson2:decode(Data),
-            io:format("mochi request : ~p~n", [mochijson2:decode(Data)]),
+            %{struct, Params} = mochijson2:decode(Data),
+            io:format("mochi request : ~p~n", [MochiActions]),
 
-            Response = hunter_game_controller:action(Params),
+            ResponseList = [hunter_game_controller:action(Item) || Item <- Actions],
+            Response = lists:flatten(ResponseList),
             MochiResponse = [{struct, Item} || Item <- Response],
             io:format("response : ~p~n", [Response]),
             io:format("mochi response : ~p~n", [MochiResponse]),
@@ -56,5 +59,12 @@ loop(Socket) ->
         {error, closed} ->
             io:format("connection closed~n"),
             ok
+    end.
+
+
+divide_actions(Actions) ->
+    case binary:split(Actions, <<"}{">>) of
+        [Action | Tail] -> [<<Action/binary,"}">> | divide_actions(Tail)];
+        Else -> [Else]
     end.
 
