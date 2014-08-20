@@ -24,5 +24,11 @@ start_link() ->
 %% ===================================================================
 
 init([]) ->
-    {ok, { {one_for_one, 5, 10}, []} }.
+    io:format("init supervisor"),
+    GameController = {hunter_game_controller, {hunter_game_controller, start_link, []},
+        permanent, 5000, worker, dynamic},
+    Processes = [GameController],
+    Strategy = {one_for_one, 10, 10},
+    {ok,
+     {Strategy, lists:flatten(Processes)}}.
 
