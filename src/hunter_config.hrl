@@ -1,11 +1,18 @@
 -record (player, {
     id,
-    notifications = []
+    notifications = [],
+    last_message
 }).
 
 -record (notification, {
-    player_id,
+    id,
     action,
     x,
     y
+}).
+
+-record (stone, {
+    x,
+    y,
+    appearing_time=0
 }).
