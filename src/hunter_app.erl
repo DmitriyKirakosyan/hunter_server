@@ -43,10 +43,15 @@ loop(Socket) ->
             io:format("data recieved : ~p~n", [Data]),
 
             {struct, Params} = mochijson2:decode(Data),
+	    io:format("mochi request : ~p~n", [mochijson2:decode(Data)]),
 
             Response = hunter_game_controller:action(Params),
+	    MochiResponse = [{struct, Item} || Item <- Response],
+	    io:format("response : ~p~n", [Response]),
+	    io:format("mochi response : ~p~n", [MochiResponse]),
+	    io:format("encoded response : ~p~n", [mochijson2:encode(lists:reverse(MochiResponse))]),
 
-            gen_tcp:send(Socket, Response),
+            gen_tcp:send(Socket, mochijson2:encode(lists:reverse(MochiResponse))),
             loop(Socket);
         {error, closed} ->
             io:format("connection closed~n"),

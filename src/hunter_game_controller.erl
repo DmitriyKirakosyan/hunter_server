@@ -22,7 +22,7 @@
 %%%===================================================================
 
 start_link() ->
-    gen_server:start_link({local, game_session_manager}, ?MODULE, [], []).
+    gen_server:start_link({local, hunter_game_controller}, ?MODULE, [], []).
 
 %%%===================================================================
 %%% gen_server callbacks
