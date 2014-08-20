@@ -5,6 +5,8 @@
 %% Application callbacks
 -export([start/2, stop/1]).
 
+-export([divide_actions/1]).
+
 -define(TCP_OPTIONS, [binary, {packet, 0}, {active, false}, {reuseaddr, true}]).
 
 -include("hunter_config.hrl").
@@ -48,7 +50,7 @@ loop(Socket) ->
             io:format("mochi request : ~p~n", [MochiActions]),
 
             ResponseList = [hunter_game_controller:action(Item) || Item <- Actions],
-            Response = lists:flatten(ResponseList),
+            Response = lists:concat(ResponseList),
             MochiResponse = [{struct, Item} || Item <- Response],
             io:format("response : ~p~n", [Response]),
             io:format("mochi response : ~p~n", [MochiResponse]),
@@ -64,7 +66,7 @@ loop(Socket) ->
 
 divide_actions(Actions) ->
     case binary:split(Actions, <<"}{">>) of
-        [Action | Tail] -> [<<Action/binary,"}">> | divide_actions(Tail)];
-        Else -> [Else]
+        [Action, Tail] -> [<<Action/binary,"}">> | divide_actions(<<"{",Tail/binary>>)];
+        Else -> Else
     end.
 
