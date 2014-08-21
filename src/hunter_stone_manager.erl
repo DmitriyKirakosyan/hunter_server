@@ -23,7 +23,7 @@ update_stones(Stones) ->
     ets:delete_all_objects(last_time),
     ets:insert(last_time, {MillisecondsNow}),
 
-    TimeDelta = MillisecondsNow - LastTime / 1000,
+    TimeDelta = (MillisecondsNow - LastTime) / 1000,
     lists:map(
         fun(Stone) ->
             if
