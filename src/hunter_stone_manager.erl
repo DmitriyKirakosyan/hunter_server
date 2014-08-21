@@ -1,11 +1,13 @@
 -module (hunter_stone_manager).
 
--export ([create_stones/0, update_stones/1]).
+-export ([create_stones/0, update_stones/1, pick_stone/2]).
 
 -define (MAP_WIDTH, 1350).
 -define (MAP_HEIGHT, 1350).
 
 -define (FIELDS_NUM, 5).
+
+-define (STONE_COOLDOWN, 10).
 
 -include ("hunter_config.hrl").
 
@@ -22,13 +24,24 @@ update_stones(Stones) ->
     TimeDelta = MillisecondsNow - LastTime / 1000,
     lists:map(
         fun(Stone) ->
-            NewStone = if
+            if
                 Stone#stone.appearing_time < TimeDelta ->
                     Stone#stone{appearing_time=0};
                 true -> Stone#stone{appearing_time = Stone#stone.appearing_time - TimeDelta}
             end
         end
 
+    , Stones).
+
+pick_stone({X, Y}, Stones) ->
+    lists:map(
+        fun(Stone) ->
+            if
+                X =:= Stone#stone.x andalso Y =:= Stone#stone.y ->
+                    Stone#stone{appearing_time = ?STONE_COOLDOWN};
+                true -> Stone
+            end
+        end
     , Stones).
 
 get_random_stone(Position) ->
@@ -42,9 +55,6 @@ get_random_stone(Position) ->
     Y = YOffset + round( random:uniform(round(FieldHeight/2)) + FieldHeight/4 ),
     #stone{x=X, y=Y}.
 
-
-milliseconds_diff(T2, T1) ->
-    timer:now_diff(T2, T1) div 1000.
 
 milliseconds_now() ->
     {Mg, S, Mc} = now(),

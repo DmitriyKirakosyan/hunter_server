@@ -29,7 +29,7 @@ start_link() ->
 %%%===================================================================
 
 init([]) ->
-    {ok, {[], [hunter_stone_manager:create_stones()]}}.%, 4000}.
+    {ok, {[], hunter_stone_manager:create_stones()}}.%, 4000}.
 
 
 
@@ -38,15 +38,21 @@ handle_call({action, PlayerAction}, _From, {Players, Stones}) ->
     ActionType = proplists:get_value(<<"action">>, PlayerAction),
     io:format("action type : ~p~n", [ActionType]),
     
-    SendedPlayers = case ActionType of
-        <<"ping">> ->
-            Players; %% do nothing
+    {UpdatedPlayers, UpdatedStones} = case ActionType of
+        ?PING_ACTION ->
+            {Players, Stones}; %% do nothing
+        ?PICK_ACTION ->
+            StoneX = get_number_from_action(<<"x">>, PlayerAction),
+            StoneY = get_number_from_action(<<"y">>, PlayerAction),
+            {Players, hunter_stone_manager:pick_stone({StoneX, StoneY}, Stones)};
         _Else -> 
-            send_to_all(PlayerAction, Players)
+            {send_to_all(PlayerAction, Players), Stones}
     end,
 
-    {Player, NewPlayers} = get_or_create_player(PlayerId, SendedPlayers),
-    Response = get_player_notifications(Player, ActionType, {Players, Stones}),
+    TickedStones = hunter_stone_manager:update_stones(UpdatedStones),
+
+    {Player, NewPlayers} = get_or_create_player(PlayerId, UpdatedPlayers),
+    Response = get_player_notifications(Player, ActionType, {Players, TickedStones}),
     FinalPlayers = replace_player(Player#player{notifications=[]}, NewPlayers),
 
     io:format("player action : ~p~n", [PlayerAction]),
@@ -123,9 +129,17 @@ get_player(PlayerId, [_ | Players]) -> get_player(PlayerId, Players).
 
 get_player_notifications(Player, ActionType, {_Players, Stones}) ->
     StonesData = if
-        ActionType =:= <<"login">> ->
+        ActionType =:= ?LOGIN_ACTION ->
             %% will be added "struct" before mochi converting
-            [[{x, Stone#stone.x}, {y, Stone#stone.y}] || Stone <- Stones];
+            [[{action, ?STONE_ADDED_ACTION}, {x, Stone#stone.x}, {y, Stone#stone.y}] || Stone <- Stones];
         true -> []
     end,
     lists:concat([Player#player.notifications, StonesData]).
+
+get_number_from_action(Key, Action) ->
+    BinValue = proplists:get_value(Key, Action),
+    ListValue = binary_to_list(BinValue),
+    case string:to_integer(ListValue) of
+        {error, no_integer} -> 0;
+        {Int, _List} -> Int
+    end.
