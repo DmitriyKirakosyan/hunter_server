@@ -37,11 +37,11 @@ listen(Port) ->
 % Wait for incoming connections and spawn the echo loop when we get one.
 accept(LSocket) ->
     {ok, Socket} = gen_tcp:accept(LSocket),
-    spawn(fun() -> loop(Socket) end),
+    spawn(fun() -> loop(Socket, undefined) end),
     accept(LSocket).
 
 % Echo back whatever data we receive on Socket.
-loop(Socket) ->
+loop(Socket, PlayerId) ->
     case gen_tcp:recv(Socket, 0) of
         {ok, Data} ->
             io:format("data recieved : ~p~n", [Data]),
@@ -59,10 +59,12 @@ loop(Socket) ->
             io:format("encoded response : ~p~n", [mochijson2:encode(lists:reverse(MochiResponse))]),
 
             gen_tcp:send(Socket, mochijson2:encode(lists:reverse(MochiResponse))),
-            loop(Socket);
+            loop(Socket, PlayerId);
+        {error, closed} when PlayerId =/= undefined ->
+            io:format("connection closed from : ~p~n", [PlayerId]),
+            hunter_game_controller:logout(PlayerId);
         {error, closed} ->
-            io:format("connection closed~n"),
-            ok
+            io:format("connection closed~n")
     end.
 
 

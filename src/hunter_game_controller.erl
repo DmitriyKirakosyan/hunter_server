@@ -13,7 +13,7 @@
          terminate/2,
          code_change/3]).
 
--export ([action/1]).
+-export ([action/1, logout/1]).
 
 -include ("hunter_config.hrl").
 
@@ -51,16 +51,26 @@ handle_call({action, PlayerAction}, _From, {Players, Stones}) ->
             {send_to_all(PlayerAction, Players), TickedStones}
     end,
 
+    DiffStonesActions = hunter_stone_manager:get_updated_stones_actions(Stones, UpdatedStones),
+    SysUpdatedPlayers = send_sys_actions_to_all(DiffStonesActions, UpdatedPlayers),
+
     io:format("updated stones : ~p~n", [UpdatedStones]),
 
-    {Player, NewPlayers} = get_or_create_player(PlayerId, UpdatedPlayers),
-    Response = get_player_notifications(Player, ActionType, {Players, Stones, UpdatedStones}),
+    {Player, NewPlayers} = get_or_create_player(PlayerId, SysUpdatedPlayers),
+    Response = get_player_notifications(Player, ActionType, {Players, UpdatedStones}),
     FinalPlayers = replace_player(Player#player{notifications=[]}, NewPlayers),
 
     io:format("player action : ~p~n", [PlayerAction]),
     %io:format("final players : ~p~n", [FinalPlayers]),
 
     {reply, Response, {FinalPlayers, UpdatedStones}};
+
+handle_call({logout, PlayerId}, _From, {Players, Stones}) ->
+    NewPlayers = remove_player(PlayerId, Players),
+    LogoutAction = [{id, PlayerId}, {action, ?LOGOUT_ACTION}],
+    NewPlayers = send_sys_actions_to_all(LogoutAction, Players),
+    {reply, ok, {NewPlayers, Stones}};
+
 
 handle_call(Request, _From, State) ->
     io:format("wtf request? : ~p~n", [Request]),
@@ -91,21 +101,40 @@ code_change(_OldVsn, State, _Extra) ->
 action(PlayerAction) ->
     gen_server:call(hunter_game_controller, {action, PlayerAction}).
 
+logout(PlayerId) ->
+    gen_server:call(hunter_game_controller, {logout, PlayerId}).
+
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
 
-send_to_all(Params, Players) ->
-    PlayerId = proplists:get_value(<<"id">>, Params),
+remove_player(PlayerId, Players) ->
+    lists:filter(
+        fun(Player) ->
+            Player#player.id =/= PlayerId
+        end
+    , Players).
+
+send_to_all(Action, Players) ->
+    PlayerId = proplists:get_value(<<"id">>, Action),
     lists:map(
         fun(Player) ->
             if
                 PlayerId =/= Player#player.id ->
-                    Player#player{notifications=[Params | Player#player.notifications]};
+                    Player#player{notifications=[Action | Player#player.notifications]};
                 true -> Player
             end 
         end
     , Players).
+
+send_sys_actions_to_all([], Players) -> Players;
+send_sys_actions_to_all(Actions, Players) ->
+    lists:map(
+        fun(Player) ->
+            Player#player{notifications=lists:concat([Player#player.notifications, Actions])}
+        end
+    , Players).
+
 
 replace_player(Player, Players) ->
     NewPlayers = lists:filter(
@@ -129,14 +158,15 @@ get_player(PlayerId, [#player{id=PlayerId} = Player | _]) ->
     Player;
 get_player(PlayerId, [_ | Players]) -> get_player(PlayerId, Players).
 
-get_player_notifications(Player, ActionType, {_Players, OldStones, NewStones}) ->
+get_player_notifications(Player, ActionType, {_Players, NewStones}) ->
     StonesData = if
         ActionType =:= ?LOGIN_ACTION ->
             %% will be added "struct" before mochi converting
+            %% TODO: Some stones may be already added, from sys actions
             ActualStones = hunter_stone_manager:get_actual_stones(NewStones),
             [[{action, ?STONE_ADDED_ACTION}, {x, Stone#stone.x}, {y, Stone#stone.y}] || Stone <- ActualStones];
         true ->
-            hunter_stone_manager:get_updated_stones_actions(OldStones, NewStones)
+            []
     end,
     io:format("stones data to send : ~p~n", [StonesData]),
     lists:concat([Player#player.notifications, StonesData]).

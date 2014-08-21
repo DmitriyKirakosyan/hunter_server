@@ -1,5 +1,6 @@
 -define (STONE_ADDED_ACTION, <<"stone_added">>).
 -define (STONE_REMOVED_ACTION, <<"stone_removed">>).
+-define (LOGOUT_ACTION, <<"logout">>).
 -define (LOGIN_ACTION, <<"login">>).
 -define (PING_ACTION, <<"ping">>).
 -define (PICK_ACTION, <<"pick">>).
