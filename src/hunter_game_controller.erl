@@ -38,13 +38,15 @@ handle_call({action, PlayerAction}, _From, {Players, Stones}) ->
     ActionType = proplists:get_value(<<"action">>, PlayerAction),
     io:format("action type : ~p~n", [ActionType]),
     
-    SendedPlayers = case ActionType =/= <<"ping">> of
-			true -> send_to_all(PlayerAction, Players);
-			_False -> Players
+    SendedPlayers = case ActionType of
+        <<"ping">> ->
+            Players; %% do nothing
+        _Else -> 
+            send_to_all(PlayerAction, Players)
     end,
 
     {Player, NewPlayers} = get_or_create_player(PlayerId, SendedPlayers),
-    Response = Player#player.notifications,
+    Response = get_player_notifications(Player, ActionType, {Players, Stones}),
     FinalPlayers = replace_player(Player#player{notifications=[]}, NewPlayers),
 
     io:format("player action : ~p~n", [PlayerAction]),
@@ -118,3 +120,12 @@ get_player(_PlayerId, []) -> undefined;
 get_player(PlayerId, [#player{id=PlayerId} = Player | _]) ->
     Player;
 get_player(PlayerId, [_ | Players]) -> get_player(PlayerId, Players).
+
+get_player_notifications(Player, ActionType, {_Players, Stones}) ->
+    StonesData = if
+        ActionType =:= <<"login">> ->
+            %% will be added "struct" before mochi converting
+            [[{x, Stone#stone.x}, {y, Stone#stone.y}] || Stone <- Stones];
+        true -> []
+    end,
+    lists:concat([Player#player.notifications, StonesData]).
