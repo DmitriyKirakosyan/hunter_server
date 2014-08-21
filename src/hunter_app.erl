@@ -59,7 +59,13 @@ loop(Socket, PlayerId) ->
             io:format("encoded response : ~p~n", [mochijson2:encode(lists:reverse(MochiResponse))]),
 
             gen_tcp:send(Socket, mochijson2:encode(lists:reverse(MochiResponse))),
-            loop(Socket, PlayerId);
+            if
+                PlayerId =:= undefined ->
+                    PlayerAction = lists:last(Actions),
+                    loop(Socket, proplists:get_value(<<"id">>, PlayerAction));
+                true ->
+                    loop(Socket, PlayerId)
+            end;
         {error, closed} when PlayerId =/= undefined ->
             io:format("connection closed from : ~p~n", [PlayerId]),
             hunter_game_controller:logout(PlayerId);
