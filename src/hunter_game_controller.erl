@@ -35,7 +35,14 @@ init([]) ->
 
 handle_call({action, PlayerAction}, _From, {Players, Stones}) ->
     PlayerId = proplists:get_value(<<"id">>, PlayerAction),
-    SendedPlayers = send_to_all(PlayerAction, Players),
+    ActionType = proplists:get_value(<<"action">>, PlayerAction),
+    io:format("action type : ~p~n", [ActionType]),
+    
+    SendedPlayers = case ActionType =/= <<"ping">> of
+			true -> send_to_all(PlayerAction, Players);
+			_False -> Players
+    end,
+
     {Player, NewPlayers} = get_or_create_player(PlayerId, SendedPlayers),
     Response = Player#player.notifications,
     FinalPlayers = replace_player(Player#player{notifications=[]}, NewPlayers),
