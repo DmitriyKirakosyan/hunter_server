@@ -2,6 +2,8 @@
 
 -export ([create_stones/0, update_stones/1, pick_stone/2]).
 
+-export([milliseconds_now/0]).
+
 -define (MAP_WIDTH, 1350).
 -define (MAP_HEIGHT, 1350).
 
@@ -18,7 +20,7 @@ create_stones() ->
 update_stones(Stones) ->
     LastTime = ets:first(last_time),
     MillisecondsNow = milliseconds_now(),
-    ets:delete(last_time),
+    ets:delete_all_objects(last_time),
     ets:insert(last_time, {MillisecondsNow}),
 
     TimeDelta = MillisecondsNow - LastTime / 1000,
