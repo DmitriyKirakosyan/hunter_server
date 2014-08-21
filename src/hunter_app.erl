@@ -17,7 +17,7 @@
 
 start(_StartType, _StartArgs) ->
     ets:new(last_time, [public, named_table]),
-    ets:insert(last_time, {hunter_stone_manager:milliseconds_now()}),
+    ets:insert(last_time, {hunter_utils:milliseconds_now()}),
     hunter_sup:start_link(),
     listen(8080).
 

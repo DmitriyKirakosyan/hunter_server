@@ -1,8 +1,8 @@
 -module (hunter_stone_manager).
 
--export ([create_stones/0, update_stones/1, pick_stone/2]).
-
--export([milliseconds_now/0]).
+-export ([create_stones/0, update_stones/1,
+          pick_stone/2, get_updated_stones_actions/2,
+          get_actual_stones/1]).
 
 -define (MAP_WIDTH, 1350).
 -define (MAP_HEIGHT, 1350).
@@ -19,7 +19,7 @@ create_stones() ->
 
 update_stones(Stones) ->
     LastTime = ets:first(last_time),
-    MillisecondsNow = milliseconds_now(),
+    MillisecondsNow = hunter_utils:milliseconds_now(),
     ets:delete_all_objects(last_time),
     ets:insert(last_time, {MillisecondsNow}),
 
@@ -46,6 +46,30 @@ pick_stone({X, Y}, Stones) ->
         end
     , Stones).
 
+get_actual_stones(Stones) ->
+    lists:filter(
+        fun(Stone) ->
+            if
+                Stone#stone.appearing_time =/= 0 ->
+                    false;
+                true -> true
+            end
+        end
+    , Stones).
+
+get_updated_stones_actions([], []) -> [];
+get_updated_stones_actions([OldStone | OldStones], [NewStone | NewStones]) ->
+    if
+        OldStone#stone.appearing_time =:= 0 andalso NewStone#stone.appearing_time =/= 0 ->
+            Action = [{action, ?STONE_REMOVED_ACTION}, {x, NewStone#stone.x}, {y, NewStone#stone.y}],
+            [Action | get_updated_stones_actions(OldStones, NewStones)];
+        OldStone#stone.appearing_time =/= 0 andalso NewStone#stone.appearing_time =:= 0 ->
+            Action = [{action, ?STONE_ADDED_ACTION}, {x, NewStone#stone.x}, {y, NewStone#stone.y}],
+            [Action | get_updated_stones_actions(OldStones, NewStones)];
+        true ->
+            get_updated_stones_actions(OldStones, NewStones)
+    end.
+
 get_random_stone(Position) ->
     FieldWidth = ?MAP_WIDTH / ?FIELDS_NUM,
     FieldHeight = ?MAP_HEIGHT / ?FIELDS_NUM,
@@ -57,8 +81,4 @@ get_random_stone(Position) ->
     Y = YOffset + round( random:uniform(round(FieldHeight/2)) + FieldHeight/4 ),
     #stone{x=X, y=Y}.
 
-
-milliseconds_now() ->
-    {Mg, S, Mc} = now(),
-    (Mg * 1000000000) + (S * 1000) + (Mc div 1000).
 
