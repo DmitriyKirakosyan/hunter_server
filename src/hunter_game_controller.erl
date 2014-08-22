@@ -69,18 +69,19 @@ handle_call({action, PlayerAction}, _From, State) ->
 
     PlayersNum = lists:flatlength(NewPlayers),
 
+    TicketStonesState = State#state{stones=TickedStones},
     UpdatedState = case ActionType of
         ?LOGIN_ACTION when PlayersNum > 1 andalso State#state.started =:= false ->
             %% starting a new game
-            State#state{players=send_to_all(PlayerAction, NewPlayers), time_left=?PLAY_TIME, started=true};
+            TicketStonesState#state{players=send_to_all(PlayerAction, NewPlayers), time_left=?PLAY_TIME, started=true};
         ?PING_ACTION ->
-            State; %% do nothing
+            TicketStonesState; %% do nothing
         ?PICK_ACTION ->
             StoneX = get_number_from_action(x, PlayerAction),
             StoneY = get_number_from_action(y, PlayerAction),
-            State#state{stones = hunter_stone_manager:pick_stone({StoneX, StoneY}, TickedStones)};
+            TicketStonesState#state{stones = hunter_stone_manager:pick_stone({StoneX, StoneY}, TickedStones)};
         _Else ->
-            State#state{players=send_to_all(PlayerAction, NewPlayers)}
+            TicketStonesState#state{players=send_to_all(PlayerAction, NewPlayers)}
     end,
 
     DiffStonesActions = hunter_stone_manager:get_updated_stones_actions(Stones, UpdatedState#state.stones),
@@ -110,7 +111,7 @@ handle_call({action, PlayerAction}, _From, State) ->
             ResultedPlayers = send_sys_actions_to_all([ResultAction], PreFinalState#state.players),
             PreFinalState#state{players=ResultedPlayers, started=false, time_left=0};
         true ->
-            {Response, PreFinalState}
+            PreFinalState
     end,
 
     {reply, Response, FinalState};
