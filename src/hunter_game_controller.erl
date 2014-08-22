@@ -89,8 +89,9 @@ handle_call({action, PlayerAction}, _From, State) ->
 
     io:format("updated stones : ~p~n", [UpdatedState#state.stones]),
 
-    Response = hunter_notifications:calc_notifications(Player, ActionType, {SysUpdatedPlayers, UpdatedState#state.stones}),
-    FinalPlayers = replace_player(Player#player{notifications=[]}, SysUpdatedPlayers),
+    {NewPlayer, _} = get_or_create_player(PlayerId, Name, SysUpdatedPlayers),
+    Response = hunter_notifications:calc_notifications(NewPlayer, ActionType, {SysUpdatedPlayers, UpdatedState#state.stones}),
+    FinalPlayers = replace_player(NewPlayer#player{notifications=[]}, SysUpdatedPlayers),
 
     %% NOTE: debug
     NewDebug = hunter_debug_util:update(ActionType, DiffStonesActions, TimeDelta, Debug),
