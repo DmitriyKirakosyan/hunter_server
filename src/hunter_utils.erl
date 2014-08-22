@@ -1,6 +1,6 @@
 -module (hunter_utils).
 
--export ([milliseconds_now/0]).
+-export ([get_time_delta/0, milliseconds_now/0]).
 
 
 get_time_delta() ->

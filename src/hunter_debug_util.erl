@@ -8,7 +8,7 @@
 update(ActionType, DiffStones, TimeDelta, Debug) when TimeDelta < 0 ->
     TimeDeltaSigned = Debug#debug.time_delta_signed,
     count_stones(ActionType, DiffStones, Debug#debug{time_delta_signed=TimeDeltaSigned+1});
-update(ActionType, DiffStones, TimeDelta, Debug) ->
+update(ActionType, DiffStones, _TimeDelta, Debug) ->
     count_stones(ActionType, DiffStones, Debug).
 
 count_stones(ActionType, DiffStones, Debug) ->
