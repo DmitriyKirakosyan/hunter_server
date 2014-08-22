@@ -60,7 +60,7 @@ handle_call({action, PlayerAction}, _From, {Players, Stones, {PickNum, AddedNum,
     io:format("updated stones : ~p~n", [UpdatedStones]),
 
     {Player, NewPlayers} = get_or_create_player(PlayerId, SysUpdatedPlayers),
-    Response = get_player_notifications(Player, ActionType, {Players, UpdatedStones}),
+    Response = hunter_notifications:calc_notifications(Player, ActionType, {Players, UpdatedStones}),
     FinalPlayers = replace_player(Player#player{notifications=[]}, NewPlayers),
 
     io:format("player action : ~p~n", [PlayerAction]),
@@ -176,19 +176,6 @@ get_player(PlayerId, [#player{id=PlayerId} = Player | _]) ->
     Player;
 get_player(PlayerId, [_ | Players]) -> get_player(PlayerId, Players).
 
-
-get_player_notifications(Player, ?LOGIN_ACTION, {_Players, Stones}) ->
-    ActualStones = hunter_stone_manager:get_actual_stones(Stones),
-    StoneActions = [[{action, ?STONE_ADDED_ACTION}, {x, Stone#stone.x}, {y, Stone#stone.y}]
-                    || Stone <- ActualStones],
-     io:format("stones data to send : ~p~n", [StoneActions]),
-    UpdatedNotifications = hunter_actions_util:remove_actions([?STONE_ADDED_ACTION, ?STONE_REMOVED_ACTION], Player#player.notifications),
-    get_player_notifications(Player#player{notifications = lists:concat([UpdatedNotifications, StoneActions]) });
-get_player_notifications(Player, _, _) ->
-    get_player_notifications(Player).
-
-get_player_notifications(Player) ->
-    hunter_actions_util:remove_actions_except_first(?MOVE_ACTION, Player#player.notifications).
 
 get_number_from_action(Key, Action) ->
     Value = proplists:get_value(Key, Action),
