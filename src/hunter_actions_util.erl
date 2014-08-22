@@ -16,15 +16,13 @@ remove_actions(ActionType, Actions) ->
         end
     , Actions).
 
-remove_actions_except_first(ActionType, Actions) -> remove_actions_except_first(ActionType, Actions, false).
 
-
-remove_actions_except_first(_, [], _) -> [];
-remove_actions_except_first(ActionType, [Action | Actions], WasMet) ->
+remove_actions_except_first(_, []) -> [];
+remove_actions_except_first(ActionType, [Action | Actions]) ->
     ActionItemType = proplists:get_value(action, Action),
     if
-        ActionType =:= ActionItemType andalso WasMet =:= true ->
-            remove_actions_except_first(ActionType, Actions, true);
+        ActionType =:= ActionItemType ->
+            [Action | remove_actions(ActionType, Actions)];
         true ->
-            [Action | remove_actions_except_first(ActionType, Actions, WasMet)]
+            [Action | remove_actions_except_first(ActionType, Actions)]
     end.

@@ -61,7 +61,7 @@ handle_call({action, PlayerAction}, _From, {Players, Stones}) ->
     FinalPlayers = replace_player(Player#player{notifications=[]}, NewPlayers),
 
     io:format("player action : ~p~n", [PlayerAction]),
-    %io:format("final players : ~p~n", [FinalPlayers]),
+    io:format("final players : ~p~n", [FinalPlayers]),
 
     {reply, Response, {FinalPlayers, UpdatedStones}};
 
@@ -169,7 +169,7 @@ get_player_notifications(Player, ActionType, {_Players, NewStones}) ->
             []
     end,
     io:format("stones data to send : ~p~n", [StonesData]),
-    MovelessNotifications = hunter_actions_util:remove_actions_axcept_first(?MOVE_ACTION, Player#player.notifications),
+    MovelessNotifications = hunter_actions_util:remove_actions_except_first(?MOVE_ACTION, Player#player.notifications),
     UpdatedNotifications = hunter_actions_util:remove_actions([?STONE_ADDED_ACTION, ?STONE_REMOVED_ACTION], MovelessNotifications),
 
 
