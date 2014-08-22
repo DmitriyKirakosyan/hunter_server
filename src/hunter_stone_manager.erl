@@ -1,6 +1,6 @@
 -module (hunter_stone_manager).
 
--export ([create_stones/0, update_stones/1,
+-export ([create_stones/0, update_stones/2,
           pick_stone/2, get_updated_stones_actions/2,
           get_actual_stones/1]).
 
@@ -13,17 +13,10 @@
 
 -include ("hunter_config.hrl").
 
-
 create_stones() ->
     [get_random_stone(I) || I <- lists:seq(0, ?FIELDS_NUM * ?FIELDS_NUM - 1)].
 
-update_stones(Stones) ->
-    LastTime = ets:first(last_time),
-    MillisecondsNow = hunter_utils:milliseconds_now(),
-    ets:delete_all_objects(last_time),
-    ets:insert(last_time, {MillisecondsNow}),
-
-    TimeDelta = (MillisecondsNow - LastTime) / 1000,
+update_stones(Stones, TimeDelta) ->
     lists:map(
         fun(Stone) ->
             if

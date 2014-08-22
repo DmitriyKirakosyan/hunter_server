@@ -20,8 +20,13 @@
 -record (state, {
     players = [],
     stones = [],
-    debug = #stones_counter{}
+    results = [],
+    time_left = 0,
+    started = false,
+    debug = #debug{}
 }).
+
+-define (PLAY_TIME, 60).
 
 %%%===================================================================
 %%% API
@@ -38,43 +43,77 @@ init([]) ->
     {ok, #state{stones=hunter_stone_manager:create_stones()} }.%, 4000}.
 
 
-%% StonesCounter -- debug only
-handle_call({action, PlayerAction}, _From, #state{players=Players, stones=Stones, debug=Debug}) ->
+%% State :
+%%   players
+%%   stones
+%%   debug
+%%   results
+%%   time_left
+%%   started
+handle_call({action, PlayerAction}, _From, State) ->
     PlayerId = proplists:get_value(id, PlayerAction),
+    Name = proplists:get_value(name, PlayerAction), %% TODO: the name comes only in login request
     ActionType = proplists:get_value(action, PlayerAction),
-    io:format("action type : ~p~n", [ActionType]),
-    
-    TickedStones = hunter_stone_manager:update_stones(Stones),
 
-    {UpdatedPlayers, UpdatedStones} = case ActionType of
+    Players = State#state.players,
+    Stones = State#state.stones,
+    Debug = State#state.debug,
+
+    TimeDelta = hunter_utils:get_time_delta(),
+
+    io:format("action type : ~p~n", [ActionType]),
+
+    {Player, NewPlayers} = get_or_create_player(PlayerId, Name, Players),
+    
+    TickedStones = hunter_stone_manager:update_stones(Stones, TimeDelta),
+
+    PlayersNum = lists:flatlength(NewPlayers),
+
+    UpdatedState = case ActionType of
+        ?LOGIN_ACTION when PlayersNum > 1 andalso State#state.started =:= false ->
+            %% starting a new game
+            State#state{players=send_to_all(PlayerAction, NewPlayers), time_left=?PLAY_TIME, started=true};
         ?PING_ACTION ->
-            {Players, TickedStones}; %% do nothing
+            State; %% do nothing
         ?PICK_ACTION ->
             StoneX = get_number_from_action(x, PlayerAction),
             StoneY = get_number_from_action(y, PlayerAction),
-            {Players, hunter_stone_manager:pick_stone({StoneX, StoneY}, TickedStones)};
-
-        _Else -> 
-            {send_to_all(PlayerAction, Players), TickedStones}
+            State#state{stones = hunter_stone_manager:pick_stone({StoneX, StoneY}, TickedStones)};
+        _Else ->
+            State#state{players=send_to_all(PlayerAction, NewPlayers)}
     end,
 
-    DiffStonesActions = hunter_stone_manager:get_updated_stones_actions(Stones, UpdatedStones),
-    SysUpdatedPlayers = send_sys_actions_to_all(DiffStonesActions, UpdatedPlayers),
+    DiffStonesActions = hunter_stone_manager:get_updated_stones_actions(Stones, UpdatedState#state.stones),
+    SysUpdatedPlayers = send_sys_actions_to_all(DiffStonesActions, UpdatedState#state.players),
 
+    io:format("updated stones : ~p~n", [UpdatedState#state.stones]),
 
-    io:format("updated stones : ~p~n", [UpdatedStones]),
+    Response = hunter_notifications:calc_notifications(Player, ActionType, {SysUpdatedPlayers, UpdatedState#state.stones}),
+    FinalPlayers = replace_player(Player#player{notifications=[]}, SysUpdatedPlayers),
 
-    {Player, NewPlayers} = get_or_create_player(PlayerId, SysUpdatedPlayers),
-    Response = hunter_notifications:calc_notifications(Player, ActionType, {Players, UpdatedStones}),
-    FinalPlayers = replace_player(Player#player{notifications=[]}, NewPlayers),
-
-    NewDebug = debug_util:count_stones(ActionType, DiffStonesActions, Debug),
+    %% NOTE: debug
+    NewDebug = hunter_debug_util:update(ActionType, DiffStonesActions, TimeDelta, Debug),
 
     io:format("player action : ~p~n", [PlayerAction]),
     io:format("final players : ~p~n", [FinalPlayers]),
-    io:format("stones counter : ~p~n", [NewDebug]),
+    io:format("debug info : ~p~n", [NewDebug]),
 
-    {reply, Response, #state{players=FinalPlayers, stones=UpdatedStones, debug=NewDebug}};
+    UpdatedTime = update_left_time(TimeDelta, State),
+
+    io:format("time left : ~p~n", [UpdatedTime]),
+
+    PreFinalState = #state{players=FinalPlayers, stones=UpdatedState#state.stones, time_left=UpdatedTime, debug=NewDebug},
+    FinalState = if
+        UpdatedTime =< 0 andalso UpdatedState#state.started =:= true ->
+            ResultAction = hunter_score_manager:get_result_action(PreFinalState#state.results, PreFinalState#state.players),
+            io:format("result action : ~p~n", [ResultAction]),
+            ResultedPlayers = send_sys_actions_to_all([ResultAction], PreFinalState#state.players),
+            PreFinalState#state{players=ResultedPlayers, started=false, time_left=0};
+        true ->
+            {Response, PreFinalState}
+    end,
+
+    {reply, Response, FinalState};
 
 handle_call({logout, PlayerId}, _From, #state{players=Players} = State) ->
     NewPlayers = remove_player(PlayerId, Players),
@@ -119,6 +158,13 @@ logout(PlayerId) ->
 %%% Internal functions
 %%%===================================================================
 
+update_left_time(_TimeDelta, #state{started=false}) -> 0;
+update_left_time(TimeDelta, #state{time_left=TimeLeft}) ->
+    if
+        TimeDelta < TimeLeft ->
+            TimeLeft - TimeDelta;
+        true -> 0
+    end.
 
 remove_player(PlayerId, Players) ->
     lists:filter(
@@ -156,10 +202,10 @@ replace_player(Player, Players) ->
     , Players),
     [Player | NewPlayers].
 
-get_or_create_player(PlayerId, Players) ->
+get_or_create_player(PlayerId, Name, Players) ->
     case get_player(PlayerId, Players) of
         undefined ->
-            NewPlayer = #player{id=PlayerId},
+            NewPlayer = #player{id=PlayerId, name=Name},
             {NewPlayer, [NewPlayer | Players]};
         Player ->
             {Player, Players}

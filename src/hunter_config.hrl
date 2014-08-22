@@ -5,9 +5,11 @@
 -define (PING_ACTION, <<"ping">>).
 -define (PICK_ACTION, <<"pick">>).
 -define (MOVE_ACTION, <<"move">>).
+-define (DEAD_ACTION, <<"dead">>).
 
 -record (player, {
     id,
+    name,
     notifications = [],
     last_message
 }).
@@ -26,8 +28,9 @@
 }).
 
 %% debug
--record (stones_counter, {
+-record (debug, {
     pick_num = 0,
     added_num = 0,
-    removed_num = 0
+    removed_num = 0,
+    time_delta_signed = 0
 }).
