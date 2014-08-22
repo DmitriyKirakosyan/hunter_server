@@ -4,6 +4,7 @@
 -define (LOGIN_ACTION, <<"login">>).
 -define (PING_ACTION, <<"ping">>).
 -define (PICK_ACTION, <<"pick">>).
+-define (MOVE_ACTION, <<"move">>).
 
 -record (player, {
     id,

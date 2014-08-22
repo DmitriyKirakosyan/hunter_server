@@ -68,8 +68,8 @@ handle_call({action, PlayerAction}, _From, {Players, Stones}) ->
 handle_call({logout, PlayerId}, _From, {Players, Stones}) ->
     NewPlayers = remove_player(PlayerId, Players),
     LogoutAction = [{id, PlayerId}, {action, ?LOGOUT_ACTION}],
-    NewPlayers = send_sys_actions_to_all(LogoutAction, Players),
-    {reply, ok, {NewPlayers, Stones}};
+    FinalPlayers = send_sys_actions_to_all(LogoutAction, NewPlayers),
+    {reply, ok, {FinalPlayers, Stones}};
 
 
 handle_call(Request, _From, State) ->
@@ -169,7 +169,11 @@ get_player_notifications(Player, ActionType, {_Players, NewStones}) ->
             []
     end,
     io:format("stones data to send : ~p~n", [StonesData]),
-    lists:concat([Player#player.notifications, StonesData]).
+    MovelessNotifications = hunter_actions_util:remove_actions_axcept_first(?MOVE_ACTION, Player#player.notifications),
+    UpdatedNotifications = hunter_actions_util:remove_actions([?STONE_ADDED_ACTION, ?STONE_REMOVED_ACTION], MovelessNotifications),
+
+
+    lists:concat([UpdatedNotifications, StonesData]).
 
 get_number_from_action(Key, Action) ->
     Value = proplists:get_value(Key, Action),
