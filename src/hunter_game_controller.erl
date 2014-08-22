@@ -34,8 +34,8 @@ init([]) ->
 
 %% StonesCounter -- debug only
 handle_call({action, PlayerAction}, _From, {Players, Stones, {PickNum, AddedNum, RemovedNum}}) ->
-    PlayerId = proplists:get_value(<<"id">>, PlayerAction),
-    ActionType = proplists:get_value(<<"action">>, PlayerAction),
+    PlayerId = proplists:get_value(id, PlayerAction),
+    ActionType = proplists:get_value(action, PlayerAction),
     io:format("action type : ~p~n", [ActionType]),
     
     TickedStones = hunter_stone_manager:update_stones(Stones),
@@ -44,8 +44,8 @@ handle_call({action, PlayerAction}, _From, {Players, Stones, {PickNum, AddedNum,
         ?PING_ACTION ->
             {Players, TickedStones, {PickNum, AddedNum, RemovedNum}}; %% do nothing
         ?PICK_ACTION ->
-            StoneX = get_number_from_action(<<"x">>, PlayerAction),
-            StoneY = get_number_from_action(<<"y">>, PlayerAction),
+            StoneX = get_number_from_action(x, PlayerAction),
+            StoneY = get_number_from_action(y, PlayerAction),
             {Players, hunter_stone_manager:pick_stone({StoneX, StoneY}, TickedStones), {PickNum+1, AddedNum, RemovedNum}};
 
         _Else -> 
@@ -134,7 +134,7 @@ remove_player(PlayerId, Players) ->
     , Players).
 
 send_to_all(Action, Players) ->
-    PlayerId = proplists:get_value(<<"id">>, Action),
+    PlayerId = proplists:get_value(id, Action),
     lists:map(
         fun(Player) ->
             if

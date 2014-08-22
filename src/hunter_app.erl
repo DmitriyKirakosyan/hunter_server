@@ -49,7 +49,7 @@ loop(Socket, PlayerId) ->
             Actions = [translate_keys_to_atom(Item) || {struct, Item} <- MochiActions],
 
             %{struct, Params} = mochijson2:decode(Data),
-            io:format("mochi request : ~p~n", [MochiActions]),
+            io:format("decoded request : ~p~n", [Actions]),
 
             ResponseList = [hunter_game_controller:action(Item) || Item <- Actions],
             Response = lists:concat(ResponseList),
@@ -62,7 +62,7 @@ loop(Socket, PlayerId) ->
             if
                 PlayerId =:= undefined ->
                     PlayerAction = lists:last(Actions),
-                    loop(Socket, proplists:get_value(<<"id">>, PlayerAction));
+                    loop(Socket, proplists:get_value(id, PlayerAction));
                 true ->
                     loop(Socket, PlayerId)
             end;
