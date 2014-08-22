@@ -176,24 +176,19 @@ get_player(PlayerId, [#player{id=PlayerId} = Player | _]) ->
     Player;
 get_player(PlayerId, [_ | Players]) -> get_player(PlayerId, Players).
 
-get_player_notifications(Player, ActionType, {_Players, NewStones}) ->
-    StonesData = if
-        ActionType =:= ?LOGIN_ACTION ->
-            %% will be added "struct" before mochi converting
-            %% TODO: Some stones may be already added, from sys actions
-            ActualStones = hunter_stone_manager:get_actual_stones(NewStones),
-            [[{action, ?STONE_ADDED_ACTION}, {x, Stone#stone.x}, {y, Stone#stone.y}] || Stone <- ActualStones];
-        true ->
-            []
-    end,
-    io:format("stones data to send : ~p~n", [StonesData]),
-    io:format("notifications was : ~p~n", [Player#player.notifications]),
-    MovelessNotifications = hunter_actions_util:remove_actions_except_first(?MOVE_ACTION, Player#player.notifications),
-    io:format("notifications became : ~p~n", [MovelessNotifications]),
-    UpdatedNotifications = hunter_actions_util:remove_actions([?STONE_ADDED_ACTION, ?STONE_REMOVED_ACTION], MovelessNotifications),
 
+get_player_notifications(Player, ?LOGIN_ACTION, {_Players, Stones}) ->
+    ActualStones = hunter_stone_manager:get_actual_stones(Stones),
+    StoneActions = [[{action, ?STONE_ADDED_ACTION}, {x, Stone#stone.x}, {y, Stone#stone.y}]
+                    || Stone <- ActualStones],
+     io:format("stones data to send : ~p~n", [StoneActions]),
+    UpdatedNotifications = hunter_actions_util:remove_actions([?STONE_ADDED_ACTION, ?STONE_REMOVED_ACTION], Player#player.notifications),
+    get_player_notifications(Player#player{notifications = lists:concat([UpdatedNotifications, StoneActions]) });
+get_player_notifications(Player, _, _) ->
+    get_player_notifications(Player).
 
-    lists:concat([UpdatedNotifications, StonesData]).
+get_player_notifications(Player) ->
+    hunter_actions_util:remove_actions_except_first(?MOVE_ACTION, Player#player.notifications).
 
 get_number_from_action(Key, Action) ->
     Value = proplists:get_value(Key, Action),
