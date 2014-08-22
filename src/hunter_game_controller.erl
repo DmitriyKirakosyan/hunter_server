@@ -29,7 +29,7 @@ start_link() ->
 %%%===================================================================
 
 init([]) ->
-    {ok, {[], hunter_stone_manager:create_stones()}}.%, 4000}.
+    {ok, {[], hunter_stone_manager:create_stones(), {0, 0, 0}} }.%, 4000}.
 
 
 %% StonesCounter -- debug only
@@ -42,14 +42,14 @@ handle_call({action, PlayerAction}, _From, {Players, Stones, {PickNum, AddedNum,
 
     {UpdatedPlayers, UpdatedStones, UpdatedStonesCounter} = case ActionType of
         ?PING_ACTION ->
-            {Players, TickedStones}; %% do nothing
+            {Players, TickedStones, {PickNum, AddedNum, RemovedNum}}; %% do nothing
         ?PICK_ACTION ->
             StoneX = get_number_from_action(<<"x">>, PlayerAction),
             StoneY = get_number_from_action(<<"y">>, PlayerAction),
             {Players, hunter_stone_manager:pick_stone({StoneX, StoneY}, TickedStones), {PickNum+1, AddedNum, RemovedNum}};
 
         _Else -> 
-            {send_to_all(PlayerAction, Players), TickedStones}
+            {send_to_all(PlayerAction, Players), TickedStones, {PickNum, AddedNum, RemovedNum}}
     end,
 
     DiffStonesActions = hunter_stone_manager:get_updated_stones_actions(Stones, UpdatedStones),
@@ -65,8 +65,9 @@ handle_call({action, PlayerAction}, _From, {Players, Stones, {PickNum, AddedNum,
 
     io:format("player action : ~p~n", [PlayerAction]),
     io:format("final players : ~p~n", [FinalPlayers]),
+    io:format("stones counter : ~p~n", [FinalStonesCounter]),
 
-    {reply, Response, {FinalPlayers, UpdatedStones}, FinalStonesCounter};
+    {reply, Response, {FinalPlayers, UpdatedStones, FinalStonesCounter}};
 
 handle_call({logout, PlayerId}, _From, {Players, Stones, StonesCounter}) ->
     NewPlayers = remove_player(PlayerId, Players),
@@ -186,7 +187,9 @@ get_player_notifications(Player, ActionType, {_Players, NewStones}) ->
             []
     end,
     io:format("stones data to send : ~p~n", [StonesData]),
+    io:format("notifications was : ~p~n", [Player#player.notifications]),
     MovelessNotifications = hunter_actions_util:remove_actions_except_first(?MOVE_ACTION, Player#player.notifications),
+    io:format("notifications became : ~p~n", [MovelessNotifications]),
     UpdatedNotifications = hunter_actions_util:remove_actions([?STONE_ADDED_ACTION, ?STONE_REMOVED_ACTION], MovelessNotifications),
 
 
