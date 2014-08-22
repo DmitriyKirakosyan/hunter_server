@@ -46,7 +46,7 @@ loop(Socket, PlayerId) ->
         {ok, Data} ->
             io:format("data recieved : ~p~n", [Data]),
             MochiActions = [mochijson2:decode(Item) || Item <- divide_actions(Data)],
-            Actions = [Item || {struct, Item} <- MochiActions],
+            Actions = [translate_keys_to_atom(Item) || {struct, Item} <- MochiActions],
 
             %{struct, Params} = mochijson2:decode(Data),
             io:format("mochi request : ~p~n", [MochiActions]),
@@ -73,6 +73,16 @@ loop(Socket, PlayerId) ->
             io:format("connection closed~n")
     end.
 
+translate_keys_to_atom(Action) ->
+    lists:map(
+        fun(Item) ->
+            case Item of
+                {Key, Value} when is_binary(Key) ->
+                    {binary_to_atom(Key, utf8), Value};
+                Else -> Else
+            end
+        end
+    , Action).
 
 divide_actions(Actions) ->
     case binary:split(Actions, <<"}{">>) of
