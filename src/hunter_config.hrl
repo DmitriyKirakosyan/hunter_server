@@ -24,3 +24,10 @@
     y,
     appearing_time=0
 }).
+
+%% debug
+-record (stones_counter, {
+    pick_num = 0,
+    added_num = 0,
+    removed_num = 0
+}).

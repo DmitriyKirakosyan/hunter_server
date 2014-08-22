@@ -17,6 +17,12 @@
 
 -include ("hunter_config.hrl").
 
+-record (state, {
+    players = [],
+    stones = [],
+    debug = #stones_counter{}
+}).
+
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -29,33 +35,32 @@ start_link() ->
 %%%===================================================================
 
 init([]) ->
-    {ok, {[], hunter_stone_manager:create_stones(), {0, 0, 0}} }.%, 4000}.
+    {ok, #state{stones=hunter_stone_manager:create_stones()} }.%, 4000}.
 
 
 %% StonesCounter -- debug only
-handle_call({action, PlayerAction}, _From, {Players, Stones, {PickNum, AddedNum, RemovedNum}}) ->
+handle_call({action, PlayerAction}, _From, #state{players=Players, stones=Stones, debug=Debug}) ->
     PlayerId = proplists:get_value(id, PlayerAction),
     ActionType = proplists:get_value(action, PlayerAction),
     io:format("action type : ~p~n", [ActionType]),
     
     TickedStones = hunter_stone_manager:update_stones(Stones),
 
-    {UpdatedPlayers, UpdatedStones, UpdatedStonesCounter} = case ActionType of
+    {UpdatedPlayers, UpdatedStones} = case ActionType of
         ?PING_ACTION ->
-            {Players, TickedStones, {PickNum, AddedNum, RemovedNum}}; %% do nothing
+            {Players, TickedStones}; %% do nothing
         ?PICK_ACTION ->
             StoneX = get_number_from_action(x, PlayerAction),
             StoneY = get_number_from_action(y, PlayerAction),
-            {Players, hunter_stone_manager:pick_stone({StoneX, StoneY}, TickedStones), {PickNum+1, AddedNum, RemovedNum}};
+            {Players, hunter_stone_manager:pick_stone({StoneX, StoneY}, TickedStones)};
 
         _Else -> 
-            {send_to_all(PlayerAction, Players), TickedStones, {PickNum, AddedNum, RemovedNum}}
+            {send_to_all(PlayerAction, Players), TickedStones}
     end,
 
     DiffStonesActions = hunter_stone_manager:get_updated_stones_actions(Stones, UpdatedStones),
     SysUpdatedPlayers = send_sys_actions_to_all(DiffStonesActions, UpdatedPlayers),
 
-    FinalStonesCounter = update_stones_counter(DiffStonesActions, UpdatedStonesCounter),
 
     io:format("updated stones : ~p~n", [UpdatedStones]),
 
@@ -63,17 +68,19 @@ handle_call({action, PlayerAction}, _From, {Players, Stones, {PickNum, AddedNum,
     Response = hunter_notifications:calc_notifications(Player, ActionType, {Players, UpdatedStones}),
     FinalPlayers = replace_player(Player#player{notifications=[]}, NewPlayers),
 
+    NewDebug = debug_util:count_stones(ActionType, DiffStonesActions, Debug),
+
     io:format("player action : ~p~n", [PlayerAction]),
     io:format("final players : ~p~n", [FinalPlayers]),
-    io:format("stones counter : ~p~n", [FinalStonesCounter]),
+    io:format("stones counter : ~p~n", [NewDebug]),
 
-    {reply, Response, {FinalPlayers, UpdatedStones, FinalStonesCounter}};
+    {reply, Response, #state{players=FinalPlayers, stones=UpdatedStones, debug=NewDebug}};
 
-handle_call({logout, PlayerId}, _From, {Players, Stones, StonesCounter}) ->
+handle_call({logout, PlayerId}, _From, #state{players=Players} = State) ->
     NewPlayers = remove_player(PlayerId, Players),
     LogoutAction = [{id, PlayerId}, {action, ?LOGOUT_ACTION}],
     FinalPlayers = send_sys_actions_to_all([LogoutAction], NewPlayers),
-    {reply, ok, {FinalPlayers, Stones, StonesCounter}};
+    {reply, ok, State#state{players=FinalPlayers}};
 
 
 handle_call(Request, _From, State) ->
@@ -112,19 +119,6 @@ logout(PlayerId) ->
 %%% Internal functions
 %%%===================================================================
 
-
-%% debug only
-update_stones_counter([], StonesCounter) -> StonesCounter;
-update_stones_counter([Action | Actions], {PickNum, AddedNum, RemovedNum}) ->
-    ActionType = proplists:get_value(action, Action),
-    case ActionType of
-        ?STONE_ADDED_ACTION ->
-            update_stones_counter(Actions, {PickNum, AddedNum+1, RemovedNum});
-        ?STONE_REMOVED_ACTION ->
-            update_stones_counter(Actions, {PickNum, AddedNum, RemovedNum+1});
-        _Else ->
-            update_stones_counter(Actions, {PickNum, AddedNum, RemovedNum})
-    end.
 
 remove_player(PlayerId, Players) ->
     lists:filter(
