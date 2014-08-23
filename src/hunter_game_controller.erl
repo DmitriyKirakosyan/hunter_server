@@ -50,76 +50,55 @@ init([]) ->
 %%   results
 %%   time_left
 %%   started
-handle_call({action, PlayerAction}, _From, State) ->
-    PlayerId = proplists:get_value(id, PlayerAction),
-    Name = proplists:get_value(name, PlayerAction), %% TODO: the name comes only in login request
-    ActionType = proplists:get_value(action, PlayerAction),
 
-    Players = State#state.players,
-    Stones = State#state.stones,
-    Debug = State#state.debug,
-
+handle_call({?LOGIN_ACTION, PlayerAction} ,_From, State) ->
     TimeDelta = hunter_utils:get_time_delta(),
 
-    io:format("action type : ~p~n", [ActionType]),
+    PlayerId = proplists:get_value(id, PlayerAction),
+    Name = proplists:get_value(name, PlayerAction),
+    NewPlayers = add_new_player(PlayerId, Name, State#state.players),
 
-    {_Player, NewPlayers} = get_or_create_player(PlayerId, Name, Players),
+    StartedState = run_game(State#state{players=NewPlayers}),
+
+    SendedState = send_action_to_all(PlayerAction, StartedState),
+    {Response, UpdatedState} = play_action(PlayerAction, TimeDelta, SendedState),
+
+    {reply, Response, UpdatedState};
+
+handle_call({?DEAD_ACTION, PlayerAction} ,_From, #state{started=false} = State) ->
+    TimeDelta = hunter_utils:get_time_delta(),
     
-    TickedStones = hunter_stone_manager:update_stones(Stones, TimeDelta),
+    SendedState = send_action_to_all(PlayerAction, State),
+    {Response, UpdatedState} = play_action(PlayerAction, TimeDelta, SendedState),
 
-    PlayersNum = lists:flatlength(NewPlayers),
+    {reply, Response, UpdatedState#state{results=[PlayerAction | UpdatedState#state.results]}};
 
-    TicketStonesState = State#state{stones=TickedStones},
-    UpdatedState = case ActionType of
-	?DEAD_ACTION ->
-	    TicketStonesState#state{players=send_to_all(PlayerAction, NewPlayers),
-				    results=[PlayerAction | TicketStonesState#state.results]};
-        ?LOGIN_ACTION when PlayersNum > 1 andalso State#state.started =:= false ->
-            %% starting a new game
-            TicketStonesState#state{players=send_to_all(PlayerAction, NewPlayers), time_left=?PLAY_TIME, started=true};
-        ?PING_ACTION ->
-            TicketStonesState; %% do nothing
-        ?PICK_ACTION ->
-            StoneX = get_number_from_action(x, PlayerAction),
-            StoneY = get_number_from_action(y, PlayerAction),
-            TicketStonesState#state{stones = hunter_stone_manager:pick_stone({StoneX, StoneY}, TickedStones)};
-        _Else ->
-            TicketStonesState#state{players=send_to_all(PlayerAction, NewPlayers)}
-    end,
+handle_call({?PING_ACTION, PlayerAction} ,_From, #state{started=false} = State) ->
+    TimeDelta = hunter_utils:get_time_delta(),
 
-    DiffStonesActions = hunter_stone_manager:get_updated_stones_actions(Stones, UpdatedState#state.stones),
-    SysUpdatedPlayers = send_sys_actions_to_all(DiffStonesActions, UpdatedState#state.players),
+    {Response, UpdatedState} = play_action(PlayerAction, TimeDelta, State),
 
-    io:format("updated stones : ~p~n", [UpdatedState#state.stones]),
+    {reply, Response, UpdatedState};
 
-    {NewPlayer, _} = get_or_create_player(PlayerId, Name, SysUpdatedPlayers),
-    Response = hunter_notifications:calc_notifications(NewPlayer, ActionType, {SysUpdatedPlayers, UpdatedState#state.stones}),
-    FinalPlayers = replace_player(NewPlayer#player{notifications=[]}, SysUpdatedPlayers),
+handle_call({?PICK_ACTION, PlayerAction} ,_From, #state{started=false} = State) ->
+    TimeDelta = hunter_utils:get_time_delta(),
 
-    %% NOTE: debug
-    NewDebug = hunter_debug_util:update(ActionType, DiffStonesActions, TimeDelta, Debug),
+    StoneX = get_number_from_action(x, PlayerAction),
+    StoneY = get_number_from_action(y, PlayerAction),
+    NewStones = hunter_stone_manager:pick_stone({StoneX, StoneY}, State#state.stones),
 
-    io:format("player action : ~p~n", [PlayerAction]),
-    io:format("final players : ~p~n", [FinalPlayers]),
-    io:format("debug info : ~p~n", [NewDebug]),
+    SendedState = send_action_to_all(PlayerAction, State#state{stones=NewStones}),
+    {Response, UpdatedState} = play_action(PlayerAction, TimeDelta, SendedState),
 
-    io:format("state : ~p~n", [UpdatedState]),
-    UpdatedTime = update_left_time(TimeDelta, UpdatedState),
+    {reply, Response, UpdatedState};
 
-    io:format("time left : ~p~n", [UpdatedTime]),
+handle_call({_ActionType, PlayerAction} ,_From, #state{started=false} = State) ->
+    TimeDelta = hunter_utils:get_time_delta(),
+    
+    SendedState = send_action_to_all(PlayerAction, State),
+    {Response, UpdatedState} = play_action(PlayerAction, TimeDelta, SendedState),
 
-    PreFinalState = UpdatedState#state{players=FinalPlayers, stones=UpdatedState#state.stones, time_left=UpdatedTime, debug=NewDebug},
-    FinalState = if
-        UpdatedTime =< 0 andalso PreFinalState#state.started =:= true ->
-            ResultAction = hunter_score_manager:get_result_action(PreFinalState#state.results, PreFinalState#state.players),
-            io:format("result action : ~p~n", [ResultAction]),
-            ResultedPlayers = send_sys_actions_to_all([ResultAction], PreFinalState#state.players),
-            PreFinalState#state{players=ResultedPlayers, started=false, time_left=0, results=[]};
-        true ->
-            PreFinalState#state{time_left=UpdatedTime}
-    end,
-
-    {reply, Response, FinalState};
+    {reply, Response, UpdatedState};
 
 handle_call({logout, PlayerId}, _From, #state{players=Players} = State) ->
     NewPlayers = remove_player(PlayerId, Players),
@@ -155,7 +134,8 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 
 action(PlayerAction) ->
-    gen_server:call(hunter_game_controller, {action, PlayerAction}).
+    ActionType = proplists:get_value(action, PlayerAction),
+    gen_server:call(hunter_game_controller, {ActionType, PlayerAction}).
 
 logout(PlayerId) ->
     gen_server:call(hunter_game_controller, {logout, PlayerId}).
@@ -163,6 +143,70 @@ logout(PlayerId) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+
+%% return: {Response, UpdatedState}
+play_action(PlayerAction, TimeDelta, State) ->
+    PlayerId = proplists:get_value(id, PlayerAction),
+    case get_player(PlayerId, State#state.players) of
+        undefined ->
+            io:format("ERROR! Player not found. action : ~p~n", [PlayerAction]),
+            State;
+        Player ->
+            ActionType = proplists:get_value(action, PlayerAction),
+            TickedStonesState = tick_stones(TimeDelta, State),
+            {Response, UpdatedState2} = create_response(ActionType, Player, TickedStonesState),
+            {Response, update_game_state(TimeDelta, UpdatedState2)}
+    end.
+
+%% Send action to all players except sender
+%%
+send_action_to_all(PlayerAction, State) ->
+    State#state{players=send_to_all(PlayerAction, State#state.players)}.
+
+%% state sections :
+
+%% Starts game if it's more then 1 playr and not started yet
+%%
+
+run_game(#state{players=[_, _ | _], started=false} = State) ->
+    State#state{time_left=?PLAY_TIME, started=true};
+run_game(State) ->
+    State.
+
+
+tick_stones(TimeDelta, State) ->
+    TickedStones = hunter_stone_manager:update_stones(State#state.stones, TimeDelta),
+
+    DiffStonesActions = hunter_stone_manager:get_updated_stones_actions(State#state.stones, TickedStones),
+    NewPlayers = send_sys_actions_to_all(DiffStonesActions, State#state.players),
+
+    %% NOTE: debug
+    NewDebug = hunter_debug_util:count_stones(DiffStonesActions, State#state.debug),
+
+    State#state{players=NewPlayers, stones=TickedStones, debug=NewDebug}.
+
+%% Returns response for client and updated State
+%% return: {Response, UpdatedState}
+create_response(ActionType, Player, State) ->
+    NewPlayers = replace_player(Player#player{notifications=[]}, State#state.players),
+    hunter_notifications:calc_notifications(Player, ActionType, {NewPlayers, State#state.stones}).
+
+%% Checks if it is end of the game and returns updated State
+%%
+update_game_state(TimeDelta, State) ->
+    UpdatedTime = update_left_time(TimeDelta, State),
+    io:format("time left : ~p~n", [UpdatedTime]),
+    if
+        UpdatedTime =< 0 andalso State#state.started =:= true ->
+            ResultAction = hunter_score_manager:get_result_action(State#state.results, State#state.players),
+            io:format("result action : ~p~n", [ResultAction]),
+            ResultedPlayers = send_sys_actions_to_all([ResultAction], State#state.players),
+            State#state{players=ResultedPlayers, started=false, time_left=0, results=[]};
+        true ->
+            State#state{time_left=UpdatedTime}
+    end.
+
 
 update_left_time(_TimeDelta, #state{started=false}) -> 0;
 update_left_time(TimeDelta, #state{time_left=TimeLeft}) ->
@@ -208,14 +252,10 @@ replace_player(Player, Players) ->
     , Players),
     [Player | NewPlayers].
 
-get_or_create_player(PlayerId, Name, Players) ->
-    case get_player(PlayerId, Players) of
-        undefined ->
-            NewPlayer = #player{id=PlayerId, name=Name},
-            {NewPlayer, [NewPlayer | Players]};
-        Player ->
-            {Player, Players}
-    end.
+%% creating new player and replace if exists
+add_new_player(PlayerId, Name, Players) ->
+    NewPlayer = #player{id=PlayerId, name=Name},
+    {NewPlayer, replace_player(NewPlayer, Players)}.
 
 get_player(_PlayerId, []) -> undefined;
 get_player(PlayerId, [#player{id=PlayerId} = Player | _]) ->
