@@ -6,6 +6,7 @@
 -define (PICK_ACTION, <<"pick">>).
 -define (MOVE_ACTION, <<"move">>).
 -define (DEAD_ACTION, <<"dead">>).
+-define (RESULT_ACTION, <<"result">>).
 
 -record (player, {
     id,

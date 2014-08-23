@@ -26,7 +26,7 @@
     debug = #debug{}
 }).
 
--define (PLAY_TIME, 60).
+-define (PLAY_TIME, 10).
 
 %%%===================================================================
 %%% API
@@ -63,7 +63,7 @@ handle_call({action, PlayerAction}, _From, State) ->
 
     io:format("action type : ~p~n", [ActionType]),
 
-    {Player, NewPlayers} = get_or_create_player(PlayerId, Name, Players),
+    {_Player, NewPlayers} = get_or_create_player(PlayerId, Name, Players),
     
     TickedStones = hunter_stone_manager:update_stones(Stones, TimeDelta),
 
@@ -71,6 +71,9 @@ handle_call({action, PlayerAction}, _From, State) ->
 
     TicketStonesState = State#state{stones=TickedStones},
     UpdatedState = case ActionType of
+	?DEAD_ACTION ->
+	    TicketStonesState#state{players=send_to_all(PlayerAction, NewPlayers),
+				    results=[PlayerAction | TicketStonesState#state.results]};
         ?LOGIN_ACTION when PlayersNum > 1 andalso State#state.started =:= false ->
             %% starting a new game
             TicketStonesState#state{players=send_to_all(PlayerAction, NewPlayers), time_left=?PLAY_TIME, started=true};
@@ -100,19 +103,20 @@ handle_call({action, PlayerAction}, _From, State) ->
     io:format("final players : ~p~n", [FinalPlayers]),
     io:format("debug info : ~p~n", [NewDebug]),
 
-    UpdatedTime = update_left_time(TimeDelta, State),
+    io:format("state : ~p~n", [UpdatedState]),
+    UpdatedTime = update_left_time(TimeDelta, UpdatedState),
 
     io:format("time left : ~p~n", [UpdatedTime]),
 
-    PreFinalState = #state{players=FinalPlayers, stones=UpdatedState#state.stones, time_left=UpdatedTime, debug=NewDebug},
+    PreFinalState = UpdatedState#state{players=FinalPlayers, stones=UpdatedState#state.stones, time_left=UpdatedTime, debug=NewDebug},
     FinalState = if
-        UpdatedTime =< 0 andalso UpdatedState#state.started =:= true ->
+        UpdatedTime =< 0 andalso PreFinalState#state.started =:= true ->
             ResultAction = hunter_score_manager:get_result_action(PreFinalState#state.results, PreFinalState#state.players),
             io:format("result action : ~p~n", [ResultAction]),
             ResultedPlayers = send_sys_actions_to_all([ResultAction], PreFinalState#state.players),
-            PreFinalState#state{players=ResultedPlayers, started=false, time_left=0};
+            PreFinalState#state{players=ResultedPlayers, started=false, time_left=0, results=[]};
         true ->
-            PreFinalState
+            PreFinalState#state{time_left=UpdatedTime}
     end,
 
     {reply, Response, FinalState};

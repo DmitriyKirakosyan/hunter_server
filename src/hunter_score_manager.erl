@@ -5,14 +5,15 @@
 -include ("hunter_config.hrl").
 
 get_result_action(Results, Players) ->
-    [
-        [
+    Data = [
+        {struct, [
             {name, Player#player.name},
             {kills, get_kills_for_player(Player#player.id, Results)},
             {deaths, get_deaths_for_player(Player#player.id, Results)}
-        ] 
+        ]} 
 
-    || Player <- Players].
+	    || Player <- Players],
+    [{action, ?RESULT_ACTION}, {data, Data}].
 
 
 get_kills_for_player(PlayerId, Results) ->
