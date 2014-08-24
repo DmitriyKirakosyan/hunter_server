@@ -65,7 +65,7 @@ handle_call({?LOGIN_ACTION, PlayerAction} ,_From, State) ->
 
     {reply, Response, UpdatedState};
 
-handle_call({?DEAD_ACTION, PlayerAction} ,_From, #state{started=false} = State) ->
+handle_call({?DEAD_ACTION, PlayerAction} ,_From, State) ->
     TimeDelta = hunter_utils:get_time_delta(),
     
     SendedState = send_action_to_all(PlayerAction, State),
@@ -73,14 +73,14 @@ handle_call({?DEAD_ACTION, PlayerAction} ,_From, #state{started=false} = State) 
 
     {reply, Response, UpdatedState#state{results=[PlayerAction | UpdatedState#state.results]}};
 
-handle_call({?PING_ACTION, PlayerAction} ,_From, #state{started=false} = State) ->
+handle_call({?PING_ACTION, PlayerAction} ,_From, State) ->
     TimeDelta = hunter_utils:get_time_delta(),
 
     {Response, UpdatedState} = play_action(PlayerAction, TimeDelta, State),
 
     {reply, Response, UpdatedState};
 
-handle_call({?PICK_ACTION, PlayerAction} ,_From, #state{started=false} = State) ->
+handle_call({?PICK_ACTION, PlayerAction} ,_From, State) ->
     TimeDelta = hunter_utils:get_time_delta(),
 
     StoneX = get_number_from_action(x, PlayerAction),
@@ -92,7 +92,13 @@ handle_call({?PICK_ACTION, PlayerAction} ,_From, #state{started=false} = State) 
 
     {reply, Response, UpdatedState};
 
-handle_call({_ActionType, PlayerAction} ,_From, #state{started=false} = State) ->
+handle_call({logout, PlayerId}, _From, #state{players=Players} = State) ->
+    NewPlayers = remove_player(PlayerId, Players),
+    LogoutAction = [{id, PlayerId}, {action, ?LOGOUT_ACTION}],
+    FinalPlayers = send_sys_actions_to_all([LogoutAction], NewPlayers),
+    {reply, ok, State#state{players=FinalPlayers}};
+
+handle_call({_ActionType, PlayerAction} ,_From, State) ->
     TimeDelta = hunter_utils:get_time_delta(),
     
     SendedState = send_action_to_all(PlayerAction, State),
@@ -100,11 +106,6 @@ handle_call({_ActionType, PlayerAction} ,_From, #state{started=false} = State) -
 
     {reply, Response, UpdatedState};
 
-handle_call({logout, PlayerId}, _From, #state{players=Players} = State) ->
-    NewPlayers = remove_player(PlayerId, Players),
-    LogoutAction = [{id, PlayerId}, {action, ?LOGOUT_ACTION}],
-    FinalPlayers = send_sys_actions_to_all([LogoutAction], NewPlayers),
-    {reply, ok, State#state{players=FinalPlayers}};
 
 
 handle_call(Request, _From, State) ->
@@ -148,15 +149,21 @@ logout(PlayerId) ->
 %% return: {Response, UpdatedState}
 play_action(PlayerAction, TimeDelta, State) ->
     PlayerId = proplists:get_value(id, PlayerAction),
-    case get_player(PlayerId, State#state.players) of
+    TickedState = tick_stones(TimeDelta, State),
+    case get_player(PlayerId, TickedState#state.players) of
         undefined ->
             io:format("ERROR! Player not found. action : ~p~n", [PlayerAction]),
-            State;
+            {[], State};
         Player ->
+	    io:format("ticked state : ~p~n", [TickedState]),
             ActionType = proplists:get_value(action, PlayerAction),
-            TickedStonesState = tick_stones(TimeDelta, State),
-            {Response, UpdatedState2} = create_response(ActionType, Player, TickedStonesState),
-            {Response, update_game_state(TimeDelta, UpdatedState2)}
+            Response = create_response(ActionType, Player, TickedState),
+	    UpdatedPlayers = replace_player(Player#player{notifications=[]}, TickedState#state.players),
+	    UpdatedState = TickedState#state{players=UpdatedPlayers},
+            FinalState = update_game_state(TimeDelta, UpdatedState),
+	    io:format("response : ~p~n", [Response]),
+	    io:format("final state : ~p~n", [FinalState]),
+	    {Response, FinalState}
     end.
 
 %% Send action to all players except sender
@@ -180,6 +187,8 @@ tick_stones(TimeDelta, State) ->
 
     DiffStonesActions = hunter_stone_manager:get_updated_stones_actions(State#state.stones, TickedStones),
     NewPlayers = send_sys_actions_to_all(DiffStonesActions, State#state.players),
+
+    %io:format("Updated stones : ~p~n", [TickedStones]),
 
     %% NOTE: debug
     NewDebug = hunter_debug_util:count_stones(DiffStonesActions, State#state.debug),
@@ -255,7 +264,7 @@ replace_player(Player, Players) ->
 %% creating new player and replace if exists
 add_new_player(PlayerId, Name, Players) ->
     NewPlayer = #player{id=PlayerId, name=Name},
-    {NewPlayer, replace_player(NewPlayer, Players)}.
+    replace_player(NewPlayer, Players).
 
 get_player(_PlayerId, []) -> undefined;
 get_player(PlayerId, [#player{id=PlayerId} = Player | _]) ->
