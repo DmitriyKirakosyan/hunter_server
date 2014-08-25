@@ -26,8 +26,6 @@
     debug = #debug{}
 }).
 
--define (PLAY_TIME, 10).
-
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -51,6 +49,8 @@ init([]) ->
 %%   time_left
 %%   started
 
+%% Login
+%% Send all actual stones back and session time left 
 handle_call({?LOGIN_ACTION, PlayerAction} ,_From, State) ->
     TimeDelta = hunter_utils:get_time_delta(),
 
@@ -58,9 +58,11 @@ handle_call({?LOGIN_ACTION, PlayerAction} ,_From, State) ->
     Name = proplists:get_value(name, PlayerAction),
     NewPlayers = add_new_player(PlayerId, Name, State#state.players),
 
-    StartedState = run_game(State#state{players=NewPlayers}),
+    TimedPlayers = send_sys_action(PlayerId, ?MAKE_TIME_ACTION(State#state.time_left), NewPlayers),
 
-    SendedState = send_action_to_all(PlayerAction, StartedState),
+    SendTimeState = run_game(State#state{players=TimedPlayers}),
+
+    SendedState = send_action_to_all(PlayerAction, SendTimeState),
     {Response, UpdatedState} = play_action(PlayerAction, TimeDelta, SendedState),
 
     {reply, Response, UpdatedState};
@@ -155,15 +157,15 @@ play_action(PlayerAction, TimeDelta, State) ->
             io:format("ERROR! Player not found. action : ~p~n", [PlayerAction]),
             {[], State};
         Player ->
-	    io:format("ticked state : ~p~n", [TickedState]),
+        io:format("ticked state : ~p~n", [TickedState]),
             ActionType = proplists:get_value(action, PlayerAction),
             Response = create_response(ActionType, Player, TickedState),
-	    UpdatedPlayers = replace_player(Player#player{notifications=[]}, TickedState#state.players),
-	    UpdatedState = TickedState#state{players=UpdatedPlayers},
+        UpdatedPlayers = replace_player(Player#player{notifications=[]}, TickedState#state.players),
+        UpdatedState = TickedState#state{players=UpdatedPlayers},
             FinalState = update_game_state(TimeDelta, UpdatedState),
-	    io:format("response : ~p~n", [Response]),
-	    io:format("final state : ~p~n", [FinalState]),
-	    {Response, FinalState}
+        io:format("response : ~p~n", [Response]),
+        io:format("final state : ~p~n", [FinalState]),
+        {Response, FinalState}
     end.
 
 %% Send action to all players except sender
@@ -241,6 +243,17 @@ send_to_all(Action, Players) ->
                     Player#player{notifications=[Action | Player#player.notifications]};
                 true -> Player
             end 
+        end
+    , Players).
+
+send_sys_action(Action, PlayerId, Players) ->
+    lists:map(
+        fun(Player) ->
+            if
+                Player#player.id =:= PlayerId ->
+                    Player#player{notifications = [Action | Player#player.notifications]};
+                true -> Player
+            end
         end
     , Players).
 

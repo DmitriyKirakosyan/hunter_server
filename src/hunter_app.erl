@@ -37,15 +37,19 @@ listen(Port) ->
 % Wait for incoming connections and spawn the echo loop when we get one.
 accept(LSocket) ->
     {ok, Socket} = gen_tcp:accept(LSocket),
-    spawn(fun() -> loop(Socket, undefined) end),
+    spawn(fun() -> loop(Socket, undefined, <<"">>) end),
     accept(LSocket).
 
 % Echo back whatever data we receive on Socket.
-loop(Socket, PlayerId) ->
+loop(Socket, PlayerId, ActionRest) ->
     case gen_tcp:recv(Socket, 0) of
         {ok, Data} ->
             io:format("data recieved : ~p~n", [Data]),
-            MochiActions = [mochijson2:decode(Item) || Item <- divide_actions(Data)],
+            {DividedActions, NewActionRest} = divide_actions(Data, ActionRest),
+
+            io:format("the rest : ~p~n", [NewActionRest]),
+
+            MochiActions = [mochijson2:decode(Item) || Item <- DividedActions],
             Actions = [translate_keys_to_atom(Item) || {struct, Item} <- MochiActions],
 
             %{struct, Params} = mochijson2:decode(Data),
@@ -56,15 +60,18 @@ loop(Socket, PlayerId) ->
             MochiResponse = [{struct, Item} || Item <- Response],
             io:format("response : ~p~n", [Response]),
             io:format("mochi response : ~p~n", [MochiResponse]),
-            io:format("encoded response : ~p~n", [mochijson2:encode(lists:reverse(MochiResponse))]),
+            %io:format("encoded response : ~p~n", [iolist_to_binary(mochijson2:encode(lists:reverse(MochiResponse)))]),
 
-            gen_tcp:send(Socket, mochijson2:encode(lists:reverse(MochiResponse))),
+            EncodedResponse = iolist_to_binary(mochijson2:encode(lists:reverse(MochiResponse))),
+            BinaryToSend = <<"#", EncodedResponse/binary, "&">>,
+            io:format("binary to send : ~p~n", [BinaryToSend]),
+            send_if_not_empty(BinaryToSend, Socket),
             if
                 PlayerId =:= undefined ->
                     PlayerAction = lists:last(Actions),
-                    loop(Socket, proplists:get_value(id, PlayerAction));
+                    loop(Socket, proplists:get_value(id, PlayerAction), NewActionRest);
                 true ->
-                    loop(Socket, PlayerId)
+                    loop(Socket, PlayerId, NewActionRest)
             end;
         {error, closed} when PlayerId =/= undefined ->
             io:format("connection closed from : ~p~n", [PlayerId]),
@@ -72,6 +79,12 @@ loop(Socket, PlayerId) ->
         {error, closed} ->
             io:format("connection closed~n")
     end.
+
+send_if_not_empty(<<"#[]#">>, _Socket) ->
+    ok;
+send_if_not_empty(Request, Socket) ->
+    gen_tcp:send(Socket, Request).
+
 
 translate_keys_to_atom(Action) ->
     lists:map(
@@ -84,9 +97,25 @@ translate_keys_to_atom(Action) ->
         end
     , Action).
 
-divide_actions(Actions) ->
-    case binary:split(Actions, <<"}{">>) of
-        [Action, Tail] -> [<<Action/binary,"}">> | divide_actions(<<"{",Tail/binary>>)];
-        Else -> Else
-    end.
+divide_actions(Actions, PrevRest) when is_binary(Actions) ->
+    case binary:split(Actions, [?ACTION_TOKEN, <<?ACTION_TOKEN/binary, ?ACTION_TOKEN/binary>>], [global]) of
+        [<<"">> | _TailActions] when PrevRest =/= <<"">> ->
+            io:format("ERROR! completed first action but there is a prev rest : ~p~n", [PrevRest]),
+            {[], <<"">>};
+        [<<"">> | TailActions] ->
+            divide_actions(TailActions);
+        [UncompletedAction | TailActions] ->
+            divide_actions([<<PrevRest/binary, UncompletedAction/binary>> | TailActions]);
+        [] ->
+            [[], <<"">>]
+    end;
+divide_actions(WrongActions, _PrevRest) ->
+    io:format("ERROR! wrong type of actions : ~p, expected type : binary~n", [WrongActions]),
+    {error, wrong_actions}.
+
+divide_actions(Actions) when is_list(Actions) ->
+    {lists:sublist(Actions, length(Actions)-1), lists:last(Actions)};
+divide_actions(WrongActions) ->
+    io:format("ERROR! wrong type of actions : ~p, expected type : list~n", [WrongActions]),
+    {error, wrong_actions}.
 

@@ -1,5 +1,6 @@
 -define (STONE_ADDED_ACTION, <<"stone_added">>).
 -define (STONE_REMOVED_ACTION, <<"stone_removed">>).
+-define (TIME_ACTION, <<"time">>).
 -define (LOGOUT_ACTION, <<"logout">>).
 -define (LOGIN_ACTION, <<"login">>).
 -define (PING_ACTION, <<"ping">>).
@@ -7,6 +8,13 @@
 -define (MOVE_ACTION, <<"move">>).
 -define (DEAD_ACTION, <<"dead">>).
 -define (RESULT_ACTION, <<"result">>).
+
+-define (STONES_IN_ROW, 3).
+-define (PLAY_TIME, 20).
+
+-define (MAKE_TIME_ACTION(Time), [{action, ?TIME_ACTION}, {time_left, Time}]).
+
+-define (ACTION_TOKEN, <<"#">>).
 
 -record (player, {
     id,

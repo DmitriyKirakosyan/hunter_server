@@ -7,14 +7,12 @@
 -define (MAP_WIDTH, 1350).
 -define (MAP_HEIGHT, 1350).
 
--define (FIELDS_NUM, 5).
-
 -define (STONE_COOLDOWN, 10).
 
 -include ("hunter_config.hrl").
 
 create_stones() ->
-    [get_random_stone(I) || I <- lists:seq(0, ?FIELDS_NUM * ?FIELDS_NUM - 1)].
+    [get_random_stone(I) || I <- lists:seq(0, ?STONES_IN_ROW * ?STONES_IN_ROW - 1)].
 
 update_stones(Stones, TimeDelta) ->
     lists:map(
@@ -64,11 +62,11 @@ get_updated_stones_actions([OldStone | OldStones], [NewStone | NewStones]) ->
     end.
 
 get_random_stone(Position) ->
-    FieldWidth = ?MAP_WIDTH / ?FIELDS_NUM,
-    FieldHeight = ?MAP_HEIGHT / ?FIELDS_NUM,
+    FieldWidth = ?MAP_WIDTH / ?STONES_IN_ROW,
+    FieldHeight = ?MAP_HEIGHT / ?STONES_IN_ROW,
 
-    XOffset = round( (Position rem ?FIELDS_NUM) * FieldWidth ),
-    YOffset = round( (Position div ?FIELDS_NUM) * FieldHeight ),
+    XOffset = round( (Position rem ?STONES_IN_ROW) * FieldWidth ),
+    YOffset = round( (Position div ?STONES_IN_ROW) * FieldHeight ),
 
     X = XOffset + round( random:uniform(round(FieldWidth/2)) + FieldWidth/4 ),
     Y = YOffset + round( random:uniform(round(FieldHeight/2)) + FieldHeight/4 ),
