@@ -1,1 +1,1 @@
-run_erl -daemon tmp/ run_erl_log "exec ./start-dev.sh"
+run_erl -daemon tmp/ erl_log "exec ./start-dev.sh"
