@@ -4,9 +4,6 @@
           pick_stone/2, get_updated_stones_actions/2,
           get_actual_stones/1]).
 
--define (MAP_WIDTH, 1350).
--define (MAP_HEIGHT, 1350).
-
 -define (STONE_COOLDOWN, 10).
 
 -include ("hunter_config.hrl").

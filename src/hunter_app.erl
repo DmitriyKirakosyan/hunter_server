@@ -66,13 +66,15 @@ loop(Socket, PlayerId, ActionRest) ->
             BinaryToSend = <<"#", EncodedResponse/binary, "&">>,
             io:format("binary to send : ~p~n", [BinaryToSend]),
             send_if_not_empty(BinaryToSend, Socket),
-            if
+            NewPlayerId = if
                 PlayerId =:= undefined ->
                     PlayerAction = lists:last(Actions),
-                    loop(Socket, proplists:get_value(id, PlayerAction), NewActionRest);
+                    proplists:get_value(id, PlayerAction);
                 true ->
-                    loop(Socket, PlayerId, NewActionRest)
-            end;
+                    PlayerId
+            end,
+            loop(Socket, NewPlayerId, NewActionRest);
+
         {error, closed} when PlayerId =/= undefined ->
             io:format("connection closed from : ~p~n", [PlayerId]),
             hunter_game_controller:logout(PlayerId);

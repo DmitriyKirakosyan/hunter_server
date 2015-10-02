@@ -20,6 +20,7 @@
 -record (state, {
     players = [],
     stones = [],
+    bonuses = [],
     results = [],
     time_left = 0,
     started = false,
@@ -58,11 +59,12 @@ handle_call({?LOGIN_ACTION, PlayerAction} ,_From, State) ->
     Name = proplists:get_value(name, PlayerAction),
     NewPlayers = add_new_player(PlayerId, Name, State#state.players),
 
-    TimedPlayers = send_sys_action(PlayerId, ?MAKE_TIME_ACTION(State#state.time_left), NewPlayers),
+    RunGameState = run_game(State#state{players=NewPlayers}),
 
-    SendTimeState = run_game(State#state{players=TimedPlayers}),
+    TimedPlayers = send_sys_action(?MAKE_TIME_ACTION(RunGameState#state.time_left), PlayerId, NewPlayers),
 
-    SendedState = send_action_to_all(PlayerAction, SendTimeState),
+
+    SendedState = send_action_to_all(PlayerAction, RunGameState#state{players = TimedPlayers}),
     {Response, UpdatedState} = play_action(PlayerAction, TimeDelta, SendedState),
 
     {reply, Response, UpdatedState};
@@ -82,7 +84,8 @@ handle_call({?PING_ACTION, PlayerAction} ,_From, State) ->
 
     {reply, Response, UpdatedState};
 
-handle_call({?PICK_ACTION, PlayerAction} ,_From, State) ->
+%% action of picking weapon by player
+handle_call({?PICK_WEAPON_ACTION, PlayerAction} ,_From, State) ->
     TimeDelta = hunter_utils:get_time_delta(),
 
     StoneX = get_number_from_action(x, PlayerAction),
@@ -90,6 +93,19 @@ handle_call({?PICK_ACTION, PlayerAction} ,_From, State) ->
     NewStones = hunter_stone_manager:pick_stone({StoneX, StoneY}, State#state.stones),
 
     SendedState = send_action_to_all(PlayerAction, State#state{stones=NewStones}),
+    {Response, UpdatedState} = play_action(PlayerAction, TimeDelta, SendedState),
+
+    {reply, Response, UpdatedState};
+
+%% action of picking bonus by player
+handle_call({?PICK_BONUS_ACTION, PlayerAction} ,_From, State) ->
+    TimeDelta = hunter_utils:get_time_delta(),
+
+    BonusX = get_number_from_action(x, PlayerAction),
+    BonusY = get_number_from_action(y, PlayerAction),
+    NewBonuses = hunter_bonus_manager:pick_bonus({BonusX, BonusY}, State#state.bonuses),
+
+    SendedState = send_action_to_all(PlayerAction, State#state{bonuses=NewBonuses}),
     {Response, UpdatedState} = play_action(PlayerAction, TimeDelta, SendedState),
 
     {reply, Response, UpdatedState};
@@ -151,21 +167,21 @@ logout(PlayerId) ->
 %% return: {Response, UpdatedState}
 play_action(PlayerAction, TimeDelta, State) ->
     PlayerId = proplists:get_value(id, PlayerAction),
-    TickedState = tick_stones(TimeDelta, State),
+    TickedState = tick_state(TimeDelta, State),
     case get_player(PlayerId, TickedState#state.players) of
         undefined ->
             io:format("ERROR! Player not found. action : ~p~n", [PlayerAction]),
             {[], State};
         Player ->
-        io:format("ticked state : ~p~n", [TickedState]),
+            io:format("ticked state : ~p~n", [TickedState]),
             ActionType = proplists:get_value(action, PlayerAction),
             Response = create_response(ActionType, Player, TickedState),
-        UpdatedPlayers = replace_player(Player#player{notifications=[]}, TickedState#state.players),
-        UpdatedState = TickedState#state{players=UpdatedPlayers},
+            UpdatedPlayers = replace_player(Player#player{notifications=[]}, TickedState#state.players),
+            UpdatedState = TickedState#state{players=UpdatedPlayers},
             FinalState = update_game_state(TimeDelta, UpdatedState),
-        io:format("response : ~p~n", [Response]),
-        io:format("final state : ~p~n", [FinalState]),
-        {Response, FinalState}
+            io:format("response : ~p~n", [Response]),
+            io:format("final state : ~p~n", [FinalState]),
+            {Response, FinalState}
     end.
 
 %% Send action to all players except sender
@@ -184,6 +200,10 @@ run_game(State) ->
     State.
 
 
+tick_state(TimeDelta, State) ->
+    StoneTickedState = tick_stones(TimeDelta, State),
+    tick_bonuses(TimeDelta, StoneTickedState).
+
 tick_stones(TimeDelta, State) ->
     TickedStones = hunter_stone_manager:update_stones(State#state.stones, TimeDelta),
 
@@ -196,6 +216,14 @@ tick_stones(TimeDelta, State) ->
     NewDebug = hunter_debug_util:count_stones(DiffStonesActions, State#state.debug),
 
     State#state{players=NewPlayers, stones=TickedStones, debug=NewDebug}.
+
+tick_bonuses(TimeDelta, State) ->
+    TickedBonuses = hunter_bonus_manager:update(State#state.bonuses, TimeDelta),
+
+    DiffBonusesActions = hunter_bonus_manager:get_updated_bonuses_actions(State#state.bonuses, TickedBonuses),
+    NewPlayers = send_sys_actions_to_all(DiffBonusesActions, State#state.players),
+
+    State#state{players=NewPlayers, bonuses=TickedBonuses}.
 
 %% Returns response for client and updated State
 %% return: {Response, UpdatedState}
