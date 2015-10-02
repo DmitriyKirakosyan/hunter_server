@@ -57,11 +57,15 @@ handle_call({?LOGIN_ACTION, PlayerAction} ,_From, State) ->
 
     PlayerId = proplists:get_value(id, PlayerAction),
     Name = proplists:get_value(name, PlayerAction),
-    NewPlayers = add_new_player(PlayerId, Name, State#state.players),
+
+    PlayersWithNewcomer = add_new_player(PlayerId, Name, State#state.players),
+
+    GameInfoAction = ?MAKE_GAME_INFO_ACTION(convert_players_for_response(State#state.players)),
+    NewPlayers = send_sys_action(GameInfoAction, PlayerId, PlayersWithNewcomer),
 
     RunGameState = run_game(State#state{players=NewPlayers}),
 
-    TimedPlayers = send_sys_action(?MAKE_TIME_ACTION(RunGameState#state.time_left), PlayerId, NewPlayers),
+    TimedPlayers = send_sys_action_to_all(?MAKE_TIME_ACTION(RunGameState#state.time_left), RunGameState#state.players),
 
 
     SendedState = send_action_to_all(PlayerAction, RunGameState#state{players = TimedPlayers}),
@@ -255,13 +259,6 @@ update_left_time(TimeDelta, #state{time_left=TimeLeft}) ->
         true -> 0
     end.
 
-remove_player(PlayerId, Players) ->
-    lists:filter(
-        fun(Player) ->
-            Player#player.id =/= PlayerId
-        end
-    , Players).
-
 send_to_all(Action, Players) ->
     PlayerId = proplists:get_value(id, Action),
     lists:map(
@@ -285,6 +282,8 @@ send_sys_action(Action, PlayerId, Players) ->
         end
     , Players).
 
+send_sys_action_to_all(Action, Players) -> send_sys_actions_to_all([Action], Players).
+
 send_sys_actions_to_all([], Players) -> Players;
 send_sys_actions_to_all(Actions, Players) ->
     lists:map(
@@ -293,6 +292,24 @@ send_sys_actions_to_all(Actions, Players) ->
         end
     , Players).
 
+%% Response utils
+
+convert_players_for_response(Players) ->
+    lists:map(
+        fun(Player) ->
+            {struct, [{id, Player#player.id}, {name, Player#player.name}]}
+        end
+
+    , Players).
+
+%% Player creation and adding
+
+remove_player(PlayerId, Players) ->
+    lists:filter(
+        fun(Player) ->
+            Player#player.id =/= PlayerId
+        end
+    , Players).
 
 replace_player(Player, Players) ->
     NewPlayers = lists:filter(

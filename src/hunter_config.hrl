@@ -10,6 +10,7 @@
 -define (PICK_BONUS_ACTION, <<"pick_bonus">>).
 -define (MOVE_ACTION, <<"move">>).
 -define (DEAD_ACTION, <<"dead">>).
+-define (GAME_INFO, <<"game_info">>).
 -define (RESULT_ACTION, <<"result">>).
 
 %% bonus
@@ -22,6 +23,8 @@
 -define (PLAY_TIME, 20).
 
 -define (MAKE_TIME_ACTION(Time), [{action, ?TIME_ACTION}, {time_left, Time}]).
+
+-define (MAKE_GAME_INFO_ACTION(Players), [{action, ?GAME_INFO}, {players, Players}]).
 
 -define (ACTION_TOKEN, <<"#">>).
 
