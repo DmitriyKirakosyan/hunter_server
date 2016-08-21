@@ -65,8 +65,8 @@ get_random_stone(Position) ->
     XOffset = round( (Position rem ?STONES_IN_ROW) * FieldWidth ),
     YOffset = round( (Position div ?STONES_IN_ROW) * FieldHeight ),
 
-    X = XOffset + round( random:uniform(round(FieldWidth/2)) + FieldWidth/4 ),
-    Y = YOffset + round( random:uniform(round(FieldHeight/2)) + FieldHeight/4 ),
+    X = XOffset + round( rand:uniform(round(FieldWidth/2)) + FieldWidth/4 ),
+    Y = YOffset + round( rand:uniform(round(FieldHeight/2)) + FieldHeight/4 ),
     #stone{x=X, y=Y}.
 
 

@@ -8,12 +8,12 @@
 
 -include ("hunter_config.hrl").
 
--type bonus() :: record().
+-type bonus() :: #bonus{}.
 
 update(Bonuses, TimeDelta) when TimeDelta == 0 -> Bonuses;
 update(Bonuses, TimeDelta) ->
     io:format("time delta : ~p~n", [TimeDelta]),
-    RandomNum = random:uniform(trunc(100 / TimeDelta) + 1),
+    RandomNum = rand:uniform(trunc(100 / TimeDelta) + 1),
         if
             RandomNum < 10 ->
                 [get_random_bonus() | Bonuses];
@@ -79,13 +79,13 @@ remove_bonus(Bonus, Bonuses) ->
 
 
 get_random_bonus() ->
-    X = random:uniform ( round( ?MAP_WIDTH ) ),
-    Y = random:uniform( round( ?MAP_HEIGHT ) ),
+    X = rand:uniform ( round( ?MAP_WIDTH ) ),
+    Y = rand:uniform( round( ?MAP_HEIGHT ) ),
     #bonus{x=X, y=Y, type=get_random_bonus_type()}.
 
 get_random_bonus_type() ->
     Types = [?BONUS_HEAL, ?BONUS_SPEED],
     ListLength = lists:flatlength(Types),
-    RandomIndex = random:uniform(ListLength),
+    RandomIndex = rand:uniform(ListLength),
     lists:nth(RandomIndex, Types).
 

@@ -12,5 +12,5 @@ get_time_delta() ->
     (MillisecondsNow - LastTime) / 1000.
 
 milliseconds_now() ->
-    {Mg, S, Mc} = now(),
+    {Mg, S, Mc} = erlang:timestamp(),
     (Mg * 1000000000) + (S * 1000) + (Mc div 1000).
