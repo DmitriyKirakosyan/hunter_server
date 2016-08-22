@@ -11,52 +11,60 @@
 create_stones() ->
     [get_random_stone(I) || I <- lists:seq(0, ?STONES_IN_ROW * ?STONES_IN_ROW - 1)].
 
-update_stones(Stones, TimeDelta) ->
-    lists:map(
-        fun(Stone) ->
-            if
-                Stone#stone.appearing_time < TimeDelta ->
-                    Stone#stone{appearing_time=0};
-                true -> Stone#stone{appearing_time = Stone#stone.appearing_time - TimeDelta}
-            end
-        end
+% update_stones(Stones, TimeDelta) ->
+%     lists:map(
+%         fun(#stone{appearing_time = StoneTime} = Stone) ->
+%             if
+%                 StoneTime < TimeDelta ->
+%                     Stone#stone{appearing_time=0};
+%                 true ->
+%                     Stone#stone{appearing_time = StoneTime - TimeDelta}
+%             end
+%         end
 
-    , Stones).
+%     , Stones).
 
-pick_stone({X, Y}, Stones) ->
-    lists:map(
-        fun(Stone) ->
-            if
-                X =:= Stone#stone.x andalso Y =:= Stone#stone.y ->
-                    Stone#stone{appearing_time = ?STONE_COOLDOWN};
-                true -> Stone
-            end
-        end
-    , Stones).
+update_stones([], _) -> [];
+update_stones([#stone{appearing_time = StoneTime} = Stone | Stones], TimeDelta) when StoneTime < TimeDelta ->
+    [Stone#stone{appearing_time=0} | update_stones(Stones, TimeDelta)];
+update_stones([#stone{appearing_time = StoneTime} = Stone | Stones], TimeDelta) ->
+    [Stone#stone{appearing_time = StoneTime - TimeDelta} | update_stones(Stones, TimeDelta)].
+
+% pick_stone({X, Y}, Stones) ->
+%     lists:map(
+%         fun(Stone) ->
+%             if
+%                 X =:= Stone#stone.x andalso Y =:= Stone#stone.y ->
+%                     Stone#stone{appearing_time = ?STONE_COOLDOWN};
+%                 true -> Stone
+%             end
+%         end
+%     , Stones).
+
+pick_stone(_, []) -> [];
+pick_stone({X, Y}, [#stone{x = StoneX, y = StoneY} = Stone | Stones]) when X =:= StoneX andalso Y =:= StoneY ->
+    [Stone#stone{appearing_time = ?STONE_COOLDOWN} | pick_stone({X, Y}, Stones)];
+pick_stone(XY, [Stone | Stones]) ->
+    [Stone | pick_stone(XY, Stones)].
 
 get_actual_stones(Stones) ->
     lists:filter(
-        fun(Stone) ->
-            if
-                Stone#stone.appearing_time =/= 0 ->
-                    false;
-                true -> true
-            end
-        end
+        fun(#stone{appearing_time = StoneTime}) -> StoneTime =:= 0 end
     , Stones).
 
+
 get_updated_stones_actions([], []) -> [];
-get_updated_stones_actions([OldStone | OldStones], [NewStone | NewStones]) ->
-    if
-        OldStone#stone.appearing_time =:= 0 andalso NewStone#stone.appearing_time =/= 0 ->
-            Action = [{action, ?STONE_REMOVED_ACTION}, {x, NewStone#stone.x}, {y, NewStone#stone.y}],
-            [Action | get_updated_stones_actions(OldStones, NewStones)];
-        OldStone#stone.appearing_time =/= 0 andalso NewStone#stone.appearing_time =:= 0 ->
-            Action = [{action, ?STONE_ADDED_ACTION}, {x, NewStone#stone.x}, {y, NewStone#stone.y}],
-            [Action | get_updated_stones_actions(OldStones, NewStones)];
-        true ->
-            get_updated_stones_actions(OldStones, NewStones)
-    end.
+get_updated_stones_actions([#stone{appearing_time = 0} | OldStones], [#stone{appearing_time = 0} | NewStones]) ->
+    get_updated_stones_actions(OldStones, NewStones);
+get_updated_stones_actions([#stone{appearing_time = 0} | OldStones], [#stone{x = X, y = Y} | NewStones]) ->
+    Action = ?MAKE_STONE_REMOVED_ACTION(X, Y),
+    [Action | get_updated_stones_actions(OldStones, NewStones)];
+get_updated_stones_actions([_ | OldStones], [#stone{appearing_time = 0, x = X, y = Y} | NewStones]) ->
+    Action = ?MAKE_STONE_ADDED_ACTION(X, Y),
+    [Action | get_updated_stones_actions(OldStones, NewStones)];
+get_updated_stones_actions([_ | OldStones], [_ | NewStones]) ->
+    get_updated_stones_actions(OldStones, NewStones).
+
 
 get_random_stone(Position) ->
     FieldWidth = ?MAP_WIDTH / ?STONES_IN_ROW,

@@ -26,6 +26,9 @@
 
 -define (MAKE_GAME_INFO_ACTION(Players), [{action, ?GAME_INFO}, {players, Players}]).
 
+-define (MAKE_STONE_REMOVED_ACTION(X, Y), [{action, ?STONE_REMOVED_ACTION}, {x, X}, {y, Y}]).
+-define (MAKE_STONE_ADDED_ACTION(X, Y), [{action, ?STONE_ADDED_ACTION}, {x, X}, {y, Y}]).
+
 -define (ACTION_TOKEN, <<"#">>).
 
 -define (MAP_WIDTH, 1350).
