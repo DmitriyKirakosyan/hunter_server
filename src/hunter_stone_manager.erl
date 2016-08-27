@@ -57,11 +57,9 @@ get_updated_stones_actions([], []) -> [];
 get_updated_stones_actions([#stone{appearing_time = 0} | OldStones], [#stone{appearing_time = 0} | NewStones]) ->
     get_updated_stones_actions(OldStones, NewStones);
 get_updated_stones_actions([#stone{appearing_time = 0} | OldStones], [#stone{x = X, y = Y} | NewStones]) ->
-    Action = ?MAKE_STONE_REMOVED_ACTION(X, Y),
-    [Action | get_updated_stones_actions(OldStones, NewStones)];
+    [?MAKE_STONE_REMOVED_ACTION(X, Y) | get_updated_stones_actions(OldStones, NewStones)];
 get_updated_stones_actions([_ | OldStones], [#stone{appearing_time = 0, x = X, y = Y} | NewStones]) ->
-    Action = ?MAKE_STONE_ADDED_ACTION(X, Y),
-    [Action | get_updated_stones_actions(OldStones, NewStones)];
+    [?MAKE_STONE_ADDED_ACTION(X, Y) | get_updated_stones_actions(OldStones, NewStones)];
 get_updated_stones_actions([_ | OldStones], [_ | NewStones]) ->
     get_updated_stones_actions(OldStones, NewStones).
 

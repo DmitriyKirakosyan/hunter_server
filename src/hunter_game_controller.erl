@@ -68,16 +68,16 @@ handle_call({?LOGIN_ACTION, PlayerAction} ,_From, State) ->
     TimedPlayers = send_sys_action_to_all(?MAKE_TIME_ACTION(RunGameState#state.time_left), RunGameState#state.players),
 
 
-    SendedState = send_action_to_all(PlayerAction, RunGameState#state{players = TimedPlayers}),
-    {Response, UpdatedState} = play_action(PlayerAction, TimeDelta, SendedState),
+    SentState = send_action_to_all(PlayerAction, RunGameState#state{players = TimedPlayers}),
+    {Response, UpdatedState} = play_action(PlayerAction, TimeDelta, SentState),
 
     {reply, Response, UpdatedState};
 
 handle_call({?DEAD_ACTION, PlayerAction} ,_From, State) ->
     TimeDelta = hunter_utils:get_time_delta(),
     
-    SendedState = send_action_to_all(PlayerAction, State),
-    {Response, UpdatedState} = play_action(PlayerAction, TimeDelta, SendedState),
+    SentState = send_action_to_all(PlayerAction, State),
+    {Response, UpdatedState} = play_action(PlayerAction, TimeDelta, SentState),
 
     {reply, Response, UpdatedState#state{results=[PlayerAction | UpdatedState#state.results]}};
 
@@ -96,8 +96,8 @@ handle_call({?PICK_WEAPON_ACTION, PlayerAction} ,_From, State) ->
     StoneY = get_number_from_action(y, PlayerAction),
     NewStones = hunter_stone_manager:pick_stone({StoneX, StoneY}, State#state.stones),
 
-    SendedState = send_action_to_all(PlayerAction, State#state{stones=NewStones}),
-    {Response, UpdatedState} = play_action(PlayerAction, TimeDelta, SendedState),
+    SentState = send_action_to_all(PlayerAction, State#state{stones=NewStones}),
+    {Response, UpdatedState} = play_action(PlayerAction, TimeDelta, SentState),
 
     {reply, Response, UpdatedState};
 
@@ -109,8 +109,8 @@ handle_call({?PICK_BONUS_ACTION, PlayerAction} ,_From, State) ->
     BonusY = get_number_from_action(y, PlayerAction),
     NewBonuses = hunter_bonus_manager:pick_bonus({BonusX, BonusY}, State#state.bonuses),
 
-    SendedState = send_action_to_all(PlayerAction, State#state{bonuses=NewBonuses}),
-    {Response, UpdatedState} = play_action(PlayerAction, TimeDelta, SendedState),
+    SentState = send_action_to_all(PlayerAction, State#state{bonuses=NewBonuses}),
+    {Response, UpdatedState} = play_action(PlayerAction, TimeDelta, SentState),
 
     {reply, Response, UpdatedState};
 
@@ -123,8 +123,8 @@ handle_call({logout, PlayerId}, _From, #state{players=Players} = State) ->
 handle_call({_ActionType, PlayerAction} ,_From, State) ->
     TimeDelta = hunter_utils:get_time_delta(),
     
-    SendedState = send_action_to_all(PlayerAction, State),
-    {Response, UpdatedState} = play_action(PlayerAction, TimeDelta, SendedState),
+    SentState = send_action_to_all(PlayerAction, State),
+    {Response, UpdatedState} = play_action(PlayerAction, TimeDelta, SentState),
 
     {reply, Response, UpdatedState};
 
