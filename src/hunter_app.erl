@@ -44,37 +44,23 @@ accept(LSocket) ->
 loop(Socket, PlayerId, ActionRest) ->
     case gen_tcp:recv(Socket, 0) of
         {ok, Data} ->
-            io:format("data recieved : ~p~n", [Data]),
-            {DividedActions, NewActionRest} = divide_actions(Data, ActionRest),
 
-            io:format("the rest : ~p~n", [NewActionRest]),
+            {Actions, NewActionRest} = parse_client_request(Data, ActionRest),
 
-            MochiActions = [mochijson2:decode(Item) || Item <- DividedActions],
-            Actions = [translate_keys_to_atom(Item) || {struct, Item} <- MochiActions],
+            Response = process_client_request(Actions),
 
-            %{struct, Params} = mochijson2:decode(Data),
-            io:format("decoded request : ~p~n", [Actions]),
+            BinaryToSend = encode_server_response(Response),
 
-            ResponseList = [hunter_game_controller:action(Item) || Item <- Actions],
-            Response = lists:concat(ResponseList),
-            MochiResponse = [{struct, Item} || Item <- Response],
-            io:format("response : ~p~n", [Response]),
-            io:format("mochi response : ~p~n", [MochiResponse]),
-            %io:format("encoded response : ~p~n", [iolist_to_binary(mochijson2:encode(lists:reverse(MochiResponse)))]),
-
-            EncodedResponse = iolist_to_binary(mochijson2:encode(lists:reverse(MochiResponse))),
-            BinaryToSend = <<"#", EncodedResponse/binary, "&">>,
-            io:format("binary to send : ~p~n", [BinaryToSend]),
             send_if_not_empty(BinaryToSend, Socket),
-            NewPlayerId = if
-                PlayerId =:= undefined ->
-                    PlayerAction = lists:last(Actions),
-                    proplists:get_value(id, PlayerAction);
-                true ->
-                    PlayerId
-            end,
-            loop(Socket, NewPlayerId, NewActionRest);
 
+            EnsuredPlayerId = if PlayerId =:= undefined ->
+                    proplists:get_value(id, lists:last(Actions));
+                true -> PlayerId
+            end,
+
+            loop(Socket, EnsuredPlayerId, NewActionRest);
+
+        %% Error handling
         {error, closed} when PlayerId =/= undefined ->
             io:format("connection closed from : ~p~n", [PlayerId]),
             hunter_game_controller:logout(PlayerId);
@@ -82,6 +68,39 @@ loop(Socket, PlayerId, ActionRest) ->
             io:format("connection closed~n")
     end.
 
+-spec parse_client_request(binary(), binary()) -> {list(), binary()}.
+parse_client_request(Request, ActionRest) ->
+    io:format("data recieved : ~p~n", [Request]),
+    {DividedActions, NewActionRest} = divide_actions(Request, ActionRest),
+
+    io:format("the rest : ~p~n", [NewActionRest]),
+
+    MochiActions = [mochijson2:decode(Item) || Item <- DividedActions],
+    Actions = [translate_keys_to_atom(Item) || {struct, Item} <- MochiActions],
+
+    %{struct, Params} = mochijson2:decode(Data),
+    io:format("decoded request : ~p~n", [Actions]),
+
+    {Actions, NewActionRest}.
+
+-spec process_client_request(list()) -> list().
+process_client_request(Actions) ->
+    ResponseList = [hunter_game_controller:action(Item) || Item <- Actions],
+    lists:concat(ResponseList).
+
+-spec encode_server_response(list()) -> binary().
+encode_server_response(Response) ->
+    MochiResponse = [{struct, Item} || Item <- Response],
+    io:format("response : ~p~n", [Response]),
+    io:format("mochi response : ~p~n", [MochiResponse]),
+    %io:format("encoded response : ~p~n", [iolist_to_binary(mochijson2:encode(lists:reverse(MochiResponse)))]),
+
+    EncodedResponse = iolist_to_binary(mochijson2:encode(lists:reverse(MochiResponse))),
+    BinaryToSend = <<"#", EncodedResponse/binary, "&">>,
+    io:format("binary to send : ~p~n", [BinaryToSend]),
+    BinaryToSend.
+
+-spec send_if_not_empty(binary(), gen_tcp:socket()) -> atom().
 send_if_not_empty(<<"#[]#">>, _Socket) ->
     ok;
 send_if_not_empty(Request, Socket) ->

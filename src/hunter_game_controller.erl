@@ -50,6 +50,17 @@ init([]) ->
 %%   time_left
 %%   started
 
+
+handle_call({Action, Params, check_ignored_actions}, From, State) ->
+    case lists:member(Action, State#state.debug#debug.ignore_actions) of
+        true ->
+            io:format("[Game Controller] Action ~p is in ignore list~n", [Action]),
+            {reply, ?EMPTY_SERVER_RESPONSE, State};
+        _false ->
+            handle_call({Action, Params}, From, State)
+    end;
+
+
 %% Login
 %% Send all actual stones back and session time left 
 handle_call({?LOGIN_ACTION, PlayerAction} ,_From, State) ->
@@ -66,7 +77,6 @@ handle_call({?LOGIN_ACTION, PlayerAction} ,_From, State) ->
     RunGameState = run_game(State#state{players=NewPlayers}),
 
     TimedPlayers = send_sys_action_to_all(?MAKE_TIME_ACTION(RunGameState#state.time_left), RunGameState#state.players),
-
 
     SentState = send_action_to_all(PlayerAction, RunGameState#state{players = TimedPlayers}),
     {Response, UpdatedState} = play_action(PlayerAction, TimeDelta, SentState),
@@ -120,7 +130,7 @@ handle_call({logout, PlayerId}, _From, #state{players=Players} = State) ->
     FinalPlayers = send_sys_actions_to_all([LogoutAction], NewPlayers),
     {reply, ok, State#state{players=FinalPlayers}};
 
-handle_call({_ActionType, PlayerAction} ,_From, State) ->
+handle_call({ActionType, PlayerAction} ,_From, State) when is_binary(ActionType) ->
     TimeDelta = hunter_utils:get_time_delta(),
     
     SentState = send_action_to_all(PlayerAction, State),
@@ -129,6 +139,18 @@ handle_call({_ActionType, PlayerAction} ,_From, State) ->
     {reply, Response, UpdatedState};
 
 
+%%% admin
+
+handle_call({admin_ignore_action, Action}, From, State) when is_atom(Action) ->
+    BinaryAction = atom_to_binary(Action, utf8),
+    handle_call({admin_ignore_action, BinaryAction}, From, State);
+
+handle_call({admin_ignore_action, Action}, _From, State) ->
+    IgnoredActions = [Action| lists:delete(Action, State#state.debug#debug.ignore_actions)],
+    {reply, ok, State#state{debug = State#state.debug#debug{ignore_actions = IgnoredActions}}};
+
+handle_call(admin_clear_ignored_actions, _From, State) ->
+    {reply, ok, State#state{debug = State#state.debug#debug{ignore_actions = []}}};
 
 handle_call(Request, _From, State) ->
     io:format("wtf request? : ~p~n", [Request]),
@@ -158,10 +180,11 @@ code_change(_OldVsn, State, _Extra) ->
 
 action(PlayerAction) ->
     ActionType = proplists:get_value(action, PlayerAction),
-    gen_server:call(hunter_game_controller, {ActionType, PlayerAction}).
+    gen_server:call(hunter_game_controller, {ActionType, PlayerAction, check_ignored_actions}).
 
 logout(PlayerId) ->
     gen_server:call(hunter_game_controller, {logout, PlayerId}).
+
 
 %%%===================================================================
 %%% Internal functions

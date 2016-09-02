@@ -34,6 +34,8 @@
 -define (MAP_WIDTH, 1350).
 -define (MAP_HEIGHT, 1350).
 
+-define (EMPTY_SERVER_RESPONSE, []).
+
 
 -record (player, {
     id,
@@ -68,5 +70,6 @@
     pick_num = 0,
     added_num = 0,
     removed_num = 0,
-    time_delta_signed = 0
+    time_delta_signed = 0,
+    ignore_actions = []
 }).
