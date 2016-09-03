@@ -37,6 +37,8 @@
 -define (EMPTY_SERVER_RESPONSE, []).
 
 
+
+
 -record (player, {
     id,
     name,
@@ -65,6 +67,12 @@
     appearing_time=0
     }).
 
+-record(bot, {
+    id :: atom(),
+    name :: binary(),
+    last_active_time :: number()
+}).
+
 %% debug
 -record (debug, {
     pick_num = 0,
@@ -73,3 +81,15 @@
     time_delta_signed = 0,
     ignore_actions = []
 }).
+
+-record (game_state, {
+    players = [] :: list(),
+    bots = [],
+    stones = [],
+    bonuses = [],
+    results = [],
+    time_left = 0,
+    started = false,
+    debug = #debug{}
+}).
+

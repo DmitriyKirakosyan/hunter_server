@@ -17,15 +17,6 @@
 
 -include ("hunter_config.hrl").
 
--record (state, {
-    players = [],
-    stones = [],
-    bonuses = [],
-    results = [],
-    time_left = 0,
-    started = false,
-    debug = #debug{}
-}).
 
 %%%===================================================================
 %%% API
@@ -39,20 +30,11 @@ start_link() ->
 %%%===================================================================
 
 init([]) ->
-    {ok, #state{stones=hunter_stone_manager:create_stones()} }.%, 4000}.
-
-
-%% State :
-%%   players
-%%   stones
-%%   debug
-%%   results
-%%   time_left
-%%   started
+    {ok, #game_state{stones=hunter_stone_manager:create_stones()} }.%, 4000}.
 
 
 handle_call({Action, Params, check_ignored_actions}, From, State) ->
-    case lists:member(Action, State#state.debug#debug.ignore_actions) of
+    case lists:member(Action, State#game_state.debug#debug.ignore_actions) of
         true ->
             io:format("[Game Controller] Action ~p is in ignore list~n", [Action]),
             {reply, ?EMPTY_SERVER_RESPONSE, State};
@@ -69,16 +51,16 @@ handle_call({?LOGIN_ACTION, PlayerAction} ,_From, State) ->
     PlayerId = proplists:get_value(id, PlayerAction),
     Name = proplists:get_value(name, PlayerAction),
 
-    PlayersWithNewcomer = add_new_player(PlayerId, Name, State#state.players),
+    PlayersWithNewcomer = add_new_player(PlayerId, Name, State#game_state.players),
 
-    GameInfoAction = ?MAKE_GAME_INFO_ACTION(convert_players_for_response(State#state.players)),
+    GameInfoAction = ?MAKE_GAME_INFO_ACTION(convert_players_for_response(State#game_state.players)),
     NewPlayers = send_sys_action(GameInfoAction, PlayerId, PlayersWithNewcomer),
 
-    RunGameState = run_game(State#state{players=NewPlayers}),
+    RunGameState = run_game(State#game_state{players=NewPlayers}),
 
-    TimedPlayers = send_sys_action_to_all(?MAKE_TIME_ACTION(RunGameState#state.time_left), RunGameState#state.players),
+    TimedPlayers = send_sys_action_to_all(?MAKE_TIME_ACTION(RunGameState#game_state.time_left), RunGameState#game_state.players),
 
-    SentState = send_action_to_all(PlayerAction, RunGameState#state{players = TimedPlayers}),
+    SentState = send_action_to_all(PlayerAction, RunGameState#game_state{players = TimedPlayers}),
     {Response, UpdatedState} = play_action(PlayerAction, TimeDelta, SentState),
 
     {reply, Response, UpdatedState};
@@ -89,7 +71,7 @@ handle_call({?DEAD_ACTION, PlayerAction} ,_From, State) ->
     SentState = send_action_to_all(PlayerAction, State),
     {Response, UpdatedState} = play_action(PlayerAction, TimeDelta, SentState),
 
-    {reply, Response, UpdatedState#state{results=[PlayerAction | UpdatedState#state.results]}};
+    {reply, Response, UpdatedState#game_state{results=[PlayerAction | UpdatedState#game_state.results]}};
 
 handle_call({?PING_ACTION, PlayerAction} ,_From, State) ->
     TimeDelta = hunter_utils:get_time_delta(),
@@ -104,9 +86,9 @@ handle_call({?PICK_WEAPON_ACTION, PlayerAction} ,_From, State) ->
 
     StoneX = get_number_from_action(x, PlayerAction),
     StoneY = get_number_from_action(y, PlayerAction),
-    NewStones = hunter_stone_manager:pick_stone({StoneX, StoneY}, State#state.stones),
+    NewStones = hunter_stone_manager:pick_stone({StoneX, StoneY}, State#game_state.stones),
 
-    SentState = send_action_to_all(PlayerAction, State#state{stones=NewStones}),
+    SentState = send_action_to_all(PlayerAction, State#game_state{stones=NewStones}),
     {Response, UpdatedState} = play_action(PlayerAction, TimeDelta, SentState),
 
     {reply, Response, UpdatedState};
@@ -117,18 +99,18 @@ handle_call({?PICK_BONUS_ACTION, PlayerAction} ,_From, State) ->
 
     BonusX = get_number_from_action(x, PlayerAction),
     BonusY = get_number_from_action(y, PlayerAction),
-    NewBonuses = hunter_bonus_manager:pick_bonus({BonusX, BonusY}, State#state.bonuses),
+    NewBonuses = hunter_bonus_manager:pick_bonus({BonusX, BonusY}, State#game_state.bonuses),
 
-    SentState = send_action_to_all(PlayerAction, State#state{bonuses=NewBonuses}),
+    SentState = send_action_to_all(PlayerAction, State#game_state{bonuses=NewBonuses}),
     {Response, UpdatedState} = play_action(PlayerAction, TimeDelta, SentState),
 
     {reply, Response, UpdatedState};
 
-handle_call({logout, PlayerId}, _From, #state{players=Players} = State) ->
+handle_call({logout, PlayerId}, _From, #game_state{players=Players} = State) ->
     NewPlayers = remove_player(PlayerId, Players),
     LogoutAction = [{id, PlayerId}, {action, ?LOGOUT_ACTION}],
     FinalPlayers = send_sys_actions_to_all([LogoutAction], NewPlayers),
-    {reply, ok, State#state{players=FinalPlayers}};
+    {reply, ok, State#game_state{players=FinalPlayers}};
 
 handle_call({ActionType, PlayerAction} ,_From, State) when is_binary(ActionType) ->
     TimeDelta = hunter_utils:get_time_delta(),
@@ -146,11 +128,11 @@ handle_call({admin_ignore_action, Action}, From, State) when is_atom(Action) ->
     handle_call({admin_ignore_action, BinaryAction}, From, State);
 
 handle_call({admin_ignore_action, Action}, _From, State) ->
-    IgnoredActions = [Action| lists:delete(Action, State#state.debug#debug.ignore_actions)],
-    {reply, ok, State#state{debug = State#state.debug#debug{ignore_actions = IgnoredActions}}};
+    IgnoredActions = [Action| lists:delete(Action, State#game_state.debug#debug.ignore_actions)],
+    {reply, ok, State#game_state{debug = State#game_state.debug#debug{ignore_actions = IgnoredActions}}};
 
 handle_call(admin_clear_ignored_actions, _From, State) ->
-    {reply, ok, State#state{debug = State#state.debug#debug{ignore_actions = []}}};
+    {reply, ok, State#game_state{debug = State#game_state.debug#debug{ignore_actions = []}}};
 
 handle_call(Request, _From, State) ->
     io:format("wtf request? : ~p~n", [Request]),
@@ -195,7 +177,7 @@ logout(PlayerId) ->
 play_action(PlayerAction, TimeDelta, State) ->
     PlayerId = proplists:get_value(id, PlayerAction),
     TickedState = tick_state(TimeDelta, State),
-    case get_player(PlayerId, TickedState#state.players) of
+    case get_player(PlayerId, TickedState#game_state.players) of
         undefined ->
             io:format("ERROR! Player not found. action : ~p~n", [PlayerAction]),
             {[], State};
@@ -203,8 +185,8 @@ play_action(PlayerAction, TimeDelta, State) ->
             io:format("ticked state : ~p~n", [TickedState]),
             ActionType = proplists:get_value(action, PlayerAction),
             Response = create_response(ActionType, Player, TickedState),
-            UpdatedPlayers = replace_player(Player#player{notifications=[]}, TickedState#state.players),
-            UpdatedState = TickedState#state{players=UpdatedPlayers},
+            UpdatedPlayers = replace_player(Player#player{notifications=[]}, TickedState#game_state.players),
+            UpdatedState = TickedState#game_state{players=UpdatedPlayers},
             FinalState = update_game_state(TimeDelta, UpdatedState),
             io:format("response : ~p~n", [Response]),
             io:format("final state : ~p~n", [FinalState]),
@@ -214,15 +196,15 @@ play_action(PlayerAction, TimeDelta, State) ->
 %% Send action to all players except sender
 %%
 send_action_to_all(PlayerAction, State) ->
-    State#state{players=send_to_all(PlayerAction, State#state.players)}.
+    State#game_state{players=send_to_all(PlayerAction, State#game_state.players)}.
 
 %% state sections :
 
 %% Starts game if it's more then 1 playr and not started yet
 %%
 
-run_game(#state{players=[_, _ | _], started=false} = State) ->
-    State#state{time_left=?PLAY_TIME, started=true};
+run_game(#game_state{players=[_, _ | _], started=false} = State) ->
+    State#game_state{time_left=?PLAY_TIME, started=true};
 run_game(State) ->
     State.
 
@@ -232,31 +214,31 @@ tick_state(TimeDelta, State) ->
     tick_bonuses(TimeDelta, StoneTickedState).
 
 tick_stones(TimeDelta, State) ->
-    TickedStones = hunter_stone_manager:update_stones(State#state.stones, TimeDelta),
+    TickedStones = hunter_stone_manager:update_stones(State#game_state.stones, TimeDelta),
 
-    DiffStonesActions = hunter_stone_manager:get_updated_stones_actions(State#state.stones, TickedStones),
-    NewPlayers = send_sys_actions_to_all(DiffStonesActions, State#state.players),
+    DiffStonesActions = hunter_stone_manager:get_updated_stones_actions(State#game_state.stones, TickedStones),
+    NewPlayers = send_sys_actions_to_all(DiffStonesActions, State#game_state.players),
 
     %io:format("Updated stones : ~p~n", [TickedStones]),
 
     %% NOTE: debug
-    NewDebug = hunter_debug_util:count_stones(DiffStonesActions, State#state.debug),
+    NewDebug = hunter_debug_util:count_stones(DiffStonesActions, State#game_state.debug),
 
-    State#state{players=NewPlayers, stones=TickedStones, debug=NewDebug}.
+    State#game_state{players=NewPlayers, stones=TickedStones, debug=NewDebug}.
 
 tick_bonuses(TimeDelta, State) ->
-    TickedBonuses = hunter_bonus_manager:update(State#state.bonuses, TimeDelta),
+    TickedBonuses = hunter_bonus_manager:update(State#game_state.bonuses, TimeDelta),
 
-    DiffBonusesActions = hunter_bonus_manager:get_updated_bonuses_actions(State#state.bonuses, TickedBonuses),
-    NewPlayers = send_sys_actions_to_all(DiffBonusesActions, State#state.players),
+    DiffBonusesActions = hunter_bonus_manager:get_updated_bonuses_actions(State#game_state.bonuses, TickedBonuses),
+    NewPlayers = send_sys_actions_to_all(DiffBonusesActions, State#game_state.players),
 
-    State#state{players=NewPlayers, bonuses=TickedBonuses}.
+    State#game_state{players=NewPlayers, bonuses=TickedBonuses}.
 
 %% Returns response for client and updated State
 %% return: {Response, UpdatedState}
 create_response(ActionType, Player, State) ->
-    NewPlayers = replace_player(Player#player{notifications=[]}, State#state.players),
-    hunter_notifications:calc_notifications(Player, ActionType, {NewPlayers, State#state.stones}).
+    NewPlayers = replace_player(Player#player{notifications=[]}, State#game_state.players),
+    hunter_notifications:calc_notifications(Player, ActionType, {NewPlayers, State#game_state.stones}).
 
 %% Checks if it is end of the game and returns updated State
 %%
@@ -264,18 +246,18 @@ update_game_state(TimeDelta, State) ->
     UpdatedTime = update_left_time(TimeDelta, State),
     io:format("time left : ~p~n", [UpdatedTime]),
     if
-        UpdatedTime =< 0 andalso State#state.started =:= true ->
-            ResultAction = hunter_score_manager:get_result_action(State#state.results, State#state.players),
+        UpdatedTime =< 0 andalso State#game_state.started =:= true ->
+            ResultAction = hunter_score_manager:get_result_action(State#game_state.results, State#game_state.players),
             io:format("result action : ~p~n", [ResultAction]),
-            ResultedPlayers = send_sys_actions_to_all([ResultAction], State#state.players),
-            State#state{players=ResultedPlayers, started=false, time_left=0, results=[]};
+            ResultedPlayers = send_sys_actions_to_all([ResultAction], State#game_state.players),
+            State#game_state{players=ResultedPlayers, started=false, time_left=0, results=[]};
         true ->
-            State#state{time_left=UpdatedTime}
+            State#game_state{time_left=UpdatedTime}
     end.
 
 
-update_left_time(_TimeDelta, #state{started=false}) -> 0;
-update_left_time(TimeDelta, #state{time_left=TimeLeft}) ->
+update_left_time(_TimeDelta, #game_state{started=false}) -> 0;
+update_left_time(TimeDelta, #game_state{time_left=TimeLeft}) ->
     if
         TimeDelta < TimeLeft ->
             TimeLeft - TimeDelta;
