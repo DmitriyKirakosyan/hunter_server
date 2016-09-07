@@ -12,6 +12,7 @@
 -define (DEAD_ACTION, <<"dead">>).
 -define (GAME_INFO, <<"game_info">>).
 -define (RESULT_ACTION, <<"result">>).
+-define (SHOOT_ACTION, <<"shoot">>).
 
 %% bonus
 -define (BONUS_HEAL, <<"bonus_heal">>).
@@ -29,10 +30,13 @@
 -define (MAKE_STONE_REMOVED_ACTION(X, Y), [{action, ?STONE_REMOVED_ACTION}, {x, X}, {y, Y}]).
 -define (MAKE_STONE_ADDED_ACTION(X, Y), [{action, ?STONE_ADDED_ACTION}, {x, X}, {y, Y}]).
 
+-define (MAKE_MOVE_ACTION(X, Y), [{action, ?MOVE_ACTION}, {x, X}, {y, Y}]).
+-define (MAKE_SHOOT_ACTION(PlayerId), [{action, ?SHOOT_ACTION}, {id, PlayerId}]).
+
 -define (ACTION_TOKEN, <<"#">>).
 
--define (MAP_WIDTH, 1350).
--define (MAP_HEIGHT, 1350).
+-define (MAP_WIDTH, 1000).
+-define (MAP_HEIGHT, 1000).
 
 -define (EMPTY_SERVER_RESPONSE, []).
 
@@ -43,7 +47,8 @@
     id,
     name,
     notifications = [],
-    last_message
+    last_message,
+    is_bot :: boolean()
 }).
 
 -record (notification, {
@@ -65,7 +70,7 @@
     type,
     duration=0,
     appearing_time=0
-    }).
+}).
 
 -record(bot, {
     id :: atom(),
@@ -84,7 +89,6 @@
 
 -record (game_state, {
     players = [] :: list(),
-    bots = [],
     stones = [],
     bonuses = [],
     results = [],
