@@ -25,7 +25,11 @@
 
 -define (MAKE_TIME_ACTION(Time), [{action, ?TIME_ACTION}, {time_left, Time}]).
 
--define (MAKE_GAME_INFO_ACTION(Players), [{action, ?GAME_INFO}, {players, Players}]).
+-define (MAKE_GAME_INFO_ACTION(Players, MapWidth, MapHeight), [
+    {action, ?GAME_INFO},
+    {players, Players},
+    {map, {width, MapWidth}, {height, MapHeight}}
+    ]).
 
 -define (MAKE_STONE_REMOVED_ACTION(X, Y), [{action, ?STONE_REMOVED_ACTION}, {x, X}, {y, Y}]).
 -define (MAKE_STONE_ADDED_ACTION(X, Y), [{action, ?STONE_ADDED_ACTION}, {x, X}, {y, Y}]).

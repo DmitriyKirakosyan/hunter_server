@@ -53,7 +53,7 @@ handle_call({?LOGIN_ACTION, PlayerAction} ,_From, State) ->
 
     PlayersWithNewcomer = add_new_player(PlayerId, Name, State#game_state.players),
 
-    GameInfoAction = ?MAKE_GAME_INFO_ACTION(convert_players_for_response(State#game_state.players)),
+    GameInfoAction = ?MAKE_GAME_INFO_ACTION(convert_players_for_response(State#game_state.players), ?MAP_WIDTH, ?MAP_HEIGHT),
     NewPlayers = send_sys_action(GameInfoAction, PlayerId, PlayersWithNewcomer),
 
     RunGameState = run_game(State#game_state{players=NewPlayers}),
