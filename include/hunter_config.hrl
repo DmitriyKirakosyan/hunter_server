@@ -28,7 +28,7 @@
 -define (MAKE_GAME_INFO_ACTION(Players, MapWidth, MapHeight), [
     {action, ?GAME_INFO},
     {players, Players},
-    {map, {width, MapWidth}, {height, MapHeight}}
+    {map, {struct, [{width, MapWidth}, {height, MapHeight}]}}
     ]).
 
 -define (MAKE_STONE_REMOVED_ACTION(X, Y), [{action, ?STONE_REMOVED_ACTION}, {x, X}, {y, Y}]).
@@ -45,14 +45,18 @@
 -define (EMPTY_SERVER_RESPONSE, []).
 
 
-
+-record(point, {
+    x = 0:: integer(),
+    y = 0:: integer()
+}).
 
 -record (player, {
     id,
     name,
     notifications = [],
     last_message,
-    is_bot :: boolean()
+    is_obs = false :: boolean(),
+    is_bot = false :: boolean()
 }).
 
 -record (notification, {

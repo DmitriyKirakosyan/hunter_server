@@ -50,8 +50,9 @@ handle_call({?LOGIN_ACTION, PlayerAction} ,_From, State) ->
 
     PlayerId = proplists:get_value(id, PlayerAction),
     Name = proplists:get_value(name, PlayerAction),
+    IsObs = proplists:get_value(obs, PlayerAction, false),
 
-    PlayersWithNewcomer = add_new_player(PlayerId, Name, State#game_state.players),
+    PlayersWithNewcomer = add_new_player(PlayerId, Name, IsObs, State#game_state.players),
 
     GameInfoAction = ?MAKE_GAME_INFO_ACTION(convert_players_for_response(State#game_state.players), ?MAP_WIDTH, ?MAP_HEIGHT),
     NewPlayers = send_sys_action(GameInfoAction, PlayerId, PlayersWithNewcomer),
@@ -301,8 +302,8 @@ send_sys_actions_to_all(Actions, Players) ->
 
 convert_players_for_response(Players) ->
     lists:map(
-        fun(Player) ->
-            {struct, [{id, Player#player.id}, {name, Player#player.name}]}
+        fun(#player{id = Id, name = Name, is_obs = Obs, is_bot = Bot}) ->
+            {struct, [{id, Id}, {name, Name}, {obs, Obs}, {bot, Bot}]}
         end
 
     , Players).
@@ -325,8 +326,9 @@ replace_player(Player, Players) ->
     [Player | NewPlayers].
 
 %% creating new player and replace if exists
-add_new_player(PlayerId, Name, Players) ->
-    NewPlayer = #player{id=PlayerId, name=Name},
+-spec add_new_player(binary(), binary(), boolean(), list(#player{})) -> list(#player{}).
+add_new_player(PlayerId, Name, IsObs, Players) ->
+    NewPlayer = #player{id=PlayerId, name=Name, is_obs = IsObs},
     replace_player(NewPlayer, Players).
 
 get_player(_PlayerId, []) -> undefined;
