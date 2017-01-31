@@ -95,7 +95,7 @@ encode_server_response(Response) ->
     io:format("mochi response : ~p~n", [MochiResponse]),
     %io:format("encoded response : ~p~n", [iolist_to_binary(mochijson2:encode(lists:reverse(MochiResponse)))]),
 
-    EncodedResponse = iolist_to_binary(mochijson2:encode(lists:reverse(MochiResponse))),
+    EncodedResponse = iolist_to_binary(mochijson2:encode()),
     BinaryToSend = <<"#", EncodedResponse/binary, "&">>,
     io:format("binary to send : ~p~n", [BinaryToSend]),
     BinaryToSend.
